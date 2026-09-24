@@ -1,0 +1,22 @@
+(async () => {
+  const apps = Array.from(document.querySelectorAll(".wrapper-apps .apps > li")).slice(0, 16);
+  const results = [];
+  for (const app of apps) {
+    const title = app.querySelector(".apps-title")?.textContent || app.className;
+    try {
+      app.click();
+      await new Promise(r => setTimeout(r, 800));
+      const dialogs = Array.from(document.querySelectorAll(".ui-dialog, .wrapper-layer-box, .layer-box, [data-own-layer-box-id]"));
+      const visibleDialog = dialogs.filter(d => d.offsetParent !== null).pop();
+      const text = visibleDialog ? visibleDialog.innerText.trim().replace(/\n+/g, " | ") : "No visible dialog";
+      results.push("=== APP: " + title + " (" + app.className + ") ===\n" + text.slice(0, 400));
+      const closeBtn = visibleDialog?.querySelector(".close, [data-value=close], .btn-close, .ui-dialog-titlebar-close, .ep-icon-close");
+      if (closeBtn) closeBtn.click();
+      await new Promise(r => setTimeout(r, 400));
+    } catch(e) {
+      results.push("=== APP: " + title + " === Error: " + e);
+    }
+  }
+  window.__APP_EXPLORATION_RESULTS = results.join("\n\n");
+  console.log("Exploration completed!");
+})();

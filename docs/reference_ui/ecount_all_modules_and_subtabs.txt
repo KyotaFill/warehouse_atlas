@@ -1,0 +1,70 @@
+=== Trang cá nhân ===
+   Thương Mại-Sản Xuất
+   Phân Phối
+   Xây Dựng
+   Trang cá Nhân là Khu vực chỉnh sửa các module hay
+
+=== Tùy chỉnh ===
+   Quản lý thông tin
+   Quản lý người dùng
+   Thiết lập chung
+   Hệ thống quản lý khác
+   Quản lý bảo mật
+   Tải xuống
+
+=== Groupware ===
+   Chia sẻ
+   Phê duyệt điện tử
+   Công việc
+   Quản lý khách hàng
+   Email dùng chung
+
+=== Kiểm kê I ===
+   Thiết lập
+   Bán hàng
+   Mua hàng
+   Sản xuất
+   Biến động hàng
+   Quản lý Trung tâm shopping
+   Báo cáo
+
+=== Kiểm kê II ===
+   Quản lý A/S
+   Số Serial/Lot
+   Quản lý chất lượng
+   Quản lý kế hoạch
+   Tính giá thành
+   Quản lý đơn hàng
+   Quản lý xuất khẩu
+   WMS
+
+=== Kế toán I ===
+   Thiết lập
+   Nhập nhanh
+   Hóa đơn
+   Hóa đơn điện tử (VN)
+   Tài khoản/Thẻ
+   Bằng tiền
+   Không bằng tiền
+   Tài sản cố định
+   Quản lý giao dịch kế toán
+   Báo cáo
+
+=== Kế toán II ===
+   Quản lý phải thu
+   Quản lý phải trả
+   Quản lý ngân sách
+   Nhập khẩu
+   Quản lý chi phí
+   Quản lý hợp đồng
+   Hợp đồng điện tử
+
+=== Trung tâm dữ liệu ===
+   Thu thập dữ liệu
+
+=== Nhân sự ===
+   Bảng lương
+   Quản lý nhân sự
+   Bảng lương (Thời vụ)
+   Quản lý thời gian
+   Hợp đồng lao động điện tử

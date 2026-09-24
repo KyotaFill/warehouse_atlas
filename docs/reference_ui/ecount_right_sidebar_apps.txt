@@ -1,0 +1,32 @@
+apps-darkmode | title: Dark Mode
+apps-ecount-ai | title: AI hỗ trợ công việc
+apps-ecount-search | title: Tìm kiếm tổng hợp
+apps-customer-center | title: Hỗ trợ thông minh
+apps-new-window | title: Mở cửa sổ mới
+apps-enote | title: E Note
+apps-notification | title: Thông báo
+apps-msg | title: Tin nhắn
+apps-messenger | title: Messenger
+apps-email | title: Email
+apps-menu-authorized | title: Chỉ xem menu có quyền hạn
+apps-remote | title: Hỗ trợ từ xa
+apps-timeline | title: Dòng thời gian
+apps-favourite | title: Bookmark
+apps-userpay | title: UserPay
+apps-toggle-apps remain-0 | title: none
+apps-darkmode | title: Dark Mode
+apps-ecount-ai | title: AI hỗ trợ công việc
+apps-ecount-search | title: Tìm kiếm tổng hợp
+apps-customer-center | title: Hỗ trợ thông minh
+apps-new-window | title: Mở cửa sổ mới
+apps-enote | title: E Note
+apps-notification | title: Thông báo
+apps-msg | title: Tin nhắn
+apps-messenger | title: Messenger
+apps-email | title: Email
+apps-menu-authorized | title: Chỉ xem menu có quyền hạn
+apps-remote | title: Hỗ trợ từ xa
+apps-timeline | title: Dòng thời gian
+apps-favourite | title: Bookmark
+apps-userpay | title: UserPay
+apps-toggle-apps remain-0 | title: none

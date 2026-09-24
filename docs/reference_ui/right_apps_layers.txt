@@ -1,0 +1,32 @@
+apps-darkmode: title=Dark Mode own-layer-box-id=layer_apps-darkmode_62
+apps-ecount-ai: title=AI hỗ trợ công việc own-layer-box-id=layer_apps-ecount-ai_63
+apps-ecount-search: title=Tìm kiếm tổng hợp own-layer-box-id=layer_apps-ecount-search_64
+apps-customer-center: title=Hỗ trợ thông minh own-layer-box-id=layer_apps-customer-center_65
+apps-new-window: title=Mở cửa sổ mới own-layer-box-id=layer_apps-new-window_66
+apps-enote: title=E Note own-layer-box-id=layer_apps-enote_67
+apps-notification: title=Thông báo own-layer-box-id=layer_apps-notification_68
+apps-msg: title=Tin nhắn own-layer-box-id=layer_apps-msg_69
+apps-messenger: title=Messenger own-layer-box-id=layer_apps-messenger_70
+apps-email: title=Email own-layer-box-id=layer_apps-email_71
+apps-menu-authorized: title=Chỉ xem menu có quyền hạn own-layer-box-id=layer_apps-menu-authorized_72
+apps-remote: title=Hỗ trợ từ xa own-layer-box-id=layer_apps-remote_73
+apps-timeline: title=Dòng thời gian own-layer-box-id=layer_apps-timeline_74
+apps-favourite: title=Bookmark own-layer-box-id=layer_apps-favourite_75
+apps-userpay: title=UserPay own-layer-box-id=layer_apps-userpay_76
+apps-toggle-apps remain-0: title=undefined own-layer-box-id=layer_apps-toggle-apps_77
+apps-darkmode: title=Dark Mode own-layer-box-id=layer_apps-darkmode_78
+apps-ecount-ai: title=AI hỗ trợ công việc own-layer-box-id=layer_apps-ecount-ai_79
+apps-ecount-search: title=Tìm kiếm tổng hợp own-layer-box-id=layer_apps-ecount-search_80
+apps-customer-center: title=Hỗ trợ thông minh own-layer-box-id=layer_apps-customer-center_81
+apps-new-window: title=Mở cửa sổ mới own-layer-box-id=layer_apps-new-window_82
+apps-enote: title=E Note own-layer-box-id=layer_apps-enote_83
+apps-notification: title=Thông báo own-layer-box-id=layer_apps-notification_84
+apps-msg: title=Tin nhắn own-layer-box-id=layer_apps-msg_85
+apps-messenger: title=Messenger own-layer-box-id=layer_apps-messenger_86
+apps-email: title=Email own-layer-box-id=layer_apps-email_87
+apps-menu-authorized: title=Chỉ xem menu có quyền hạn own-layer-box-id=layer_apps-menu-authorized_88
+apps-remote: title=Hỗ trợ từ xa own-layer-box-id=layer_apps-remote_89
+apps-timeline: title=Dòng thời gian own-layer-box-id=layer_apps-timeline_90
+apps-favourite: title=Bookmark own-layer-box-id=layer_apps-favourite_91
+apps-userpay: title=UserPay own-layer-box-id=layer_apps-userpay_92
+apps-toggle-apps remain-0: title=undefined own-layer-box-id=layer_apps-toggle-apps_93

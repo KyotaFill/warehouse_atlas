@@ -1,0 +1,7 @@
+ui-dialog panel panel-primary panel-modal ui-draggable ui-front react-draggable | text: Messenger
+---
+ui-dialog panel panel-primary panel-modal ui-draggable ui-front react-draggable | text: AI hỗ trợ công việc
+Yêu cầu tóm tắt bằng AI
+Tóm tắt bằng ECOUNT AI
+Dựa trên dữ liệu được đăng trong bảng thông báo của công ty,
+AI sẽ tóm tắt nội dung
