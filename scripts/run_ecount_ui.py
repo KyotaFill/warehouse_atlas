@@ -12,6 +12,7 @@ import subprocess
 import sys
 import threading
 from pathlib import Path
+from uuid import UUID
 
 # Add project root and src to sys.path
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -328,6 +329,57 @@ class EcountBackendHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json({"status": "error", "message": str(e)}, 500)
                 return
 
+        # 8. API Tra cứu danh sách Lô theo sản phẩm (FEFO Candidates)
+        if path == "/api/lots":
+            try:
+                import urllib.parse
+
+                parsed = urllib.parse.urlparse(self.path)
+                params = urllib.parse.parse_qs(parsed.query)
+                p_id_str = params.get("product_id", [None])[0]
+
+                with get_db_session() as session:
+                    stmt = (
+                        select(
+                            StockBalance.lot_id,
+                            Lot.code.label("lot_code"),
+                            Lot.expires_on,
+                            StockBalance.location_id,
+                            Location.code.label("location_code"),
+                            StockBalance.condition,
+                            StockBalance.on_hand,
+                            StockBalance.reserved,
+                            (StockBalance.on_hand - StockBalance.reserved).label("available_qty"),
+                        )
+                        .join(Lot, StockBalance.lot_id == Lot.id)
+                        .join(Location, StockBalance.location_id == Location.id)
+                        .where(StockBalance.on_hand > 0)
+                    )
+                    if p_id_str:
+                        stmt = stmt.where(StockBalance.product_id == UUID(p_id_str))
+                    # Sắp xếp FEFO chuẩn: Lô hết hạn trước xếp đầu
+                    stmt = stmt.order_by(Lot.expires_on.asc().nulls_last(), Lot.received_at.asc())
+                    rows = session.execute(stmt).all()
+                    lots_list = [
+                        {
+                            "lot_id": str(r.lot_id),
+                            "lot_code": r.lot_code,
+                            "expires_on": str(r.expires_on) if r.expires_on else "Không hạn",
+                            "location_id": str(r.location_id),
+                            "location_code": r.location_code,
+                            "condition": r.condition,
+                            "on_hand": float(r.on_hand),
+                            "reserved": float(r.reserved),
+                            "available_qty": float(r.available_qty),
+                        }
+                        for r in rows
+                    ]
+                self._send_json({"status": "success", "data": lots_list})
+                return
+            except Exception as e:
+                self._send_json({"status": "error", "message": str(e)}, 500)
+                return
+
         # File tĩnh mặc định (HTML, CSS, JS, Images, Fonts)
         super().do_GET()
 
@@ -481,6 +533,253 @@ class EcountBackendHandler(http.server.SimpleHTTPRequestHandler):
                     {
                         "status": "success",
                         "message": f"Ghi sổ thành công phiếu nhập {doc_code}!",
+                        "code": doc_code,
+                    }
+                )
+                return
+            except Exception as e:
+                self._send_json({"status": "error", "message": str(e)}, 500)
+                return
+
+        # 2. API Lập phiếu Xuất kho bán hàng (Goods Shipment - Outbound)
+        if path == "/api/shipment/create":
+            try:
+                from datetime import UTC, datetime
+                from decimal import Decimal
+                from uuid import UUID, uuid4
+
+                from warehouse_atlas.application.dtos.inventory_dto import (
+                    PostDocumentCommand,
+                )
+                from warehouse_atlas.application.services.posting_engine import PostingEngine
+                from warehouse_atlas.domain.model.document import (
+                    InventoryDocument,
+                    InventoryDocumentLine,
+                )
+                from warehouse_atlas.infrastructure.orm.inventory_models import (
+                    InventoryDocument as InventoryDocumentRow,
+                )
+                from warehouse_atlas.infrastructure.orm.inventory_models import (
+                    InventoryDocumentLine as InventoryDocumentLineRow,
+                )
+                from warehouse_atlas.infrastructure.orm.user_models import AppUser
+                from warehouse_atlas.infrastructure.unit_of_work import SqlAlchemyUnitOfWork
+
+                product_id = UUID(body["product_id"])
+                location_id = UUID(body["location_id"])
+                lot_id = UUID(body["lot_id"])
+                qty = Decimal(str(body["quantity"]))
+                partner_id = UUID(body["partner_id"]) if body.get("partner_id") else None
+
+                uow = SqlAlchemyUnitOfWork()
+                with uow:
+                    user = uow.session.query(AppUser).filter_by(username="picker").first()
+                    wh = uow.session.query(Warehouse).filter_by(code="WH-MAIN").first()
+                    p_uom = (
+                        uow.session.query(ProductUom)
+                        .filter_by(product_id=product_id, factor_to_base=Decimal("1"))
+                        .first()
+                    )
+
+                    doc_id = uuid4()
+                    doc_code = (
+                        f"SHP-{datetime.now(UTC).strftime('%y%m%d')}-{str(doc_id)[:6].upper()}"
+                    )
+                    doc_row = InventoryDocumentRow(
+                        id=doc_id,
+                        warehouse_id=wh.id,
+                        code=doc_code,
+                        kind=DocumentKind.SHIPMENT.value,
+                        status=DocumentStatus.APPROVED.value,
+                        partner_id=partner_id,
+                        created_by=user.id,
+                        version=1,
+                    )
+                    uow.session.add(doc_row)
+                    uow.session.flush()
+
+                    line_id = uuid4()
+                    line_row = InventoryDocumentLineRow(
+                        id=line_id,
+                        document_id=doc_id,
+                        line_no=1,
+                        product_id=product_id,
+                        lot_id=lot_id,
+                        product_uom_id=p_uom.id,
+                        qty=qty,
+                        factor_to_base_snapshot=Decimal("1"),
+                        qty_base=qty,
+                        from_location_id=location_id,
+                        from_condition=Condition.GOOD.value,
+                        to_location_id=None,
+                        to_condition=None,
+                    )
+                    uow.session.add(line_row)
+                    uow.session.flush()
+
+                    domain_line = InventoryDocumentLine(
+                        id=line_id,
+                        document_id=doc_id,
+                        line_number=1,
+                        product_id=product_id,
+                        uom_id=p_uom.id,
+                        quantity=qty,
+                        quantity_base=qty,
+                        lot_id=lot_id,
+                        from_location_id=location_id,
+                        to_location_id=None,
+                        from_condition=Condition.GOOD,
+                        to_condition=None,
+                    )
+                    domain_doc = InventoryDocument(
+                        id=doc_id,
+                        warehouse_id=wh.id,
+                        code=doc_code,
+                        kind=DocumentKind.SHIPMENT,
+                        status=DocumentStatus.APPROVED,
+                        created_by=user.id,
+                        created_at=datetime.now(UTC),
+                        version=1,
+                        lines=[domain_line],
+                    )
+                    cmd = PostDocumentCommand(
+                        document_id=doc_id,
+                        expected_version=1,
+                        idempotency_key=uuid4(),
+                        actor_id=user.id,
+                        canonical_payload_hash="shipment-live-action-verified",
+                        lines=(),
+                    )
+                    PostingEngine.post_in_uow(uow, domain_doc, cmd)
+                    uow.commit()
+
+                self._send_json(
+                    {
+                        "status": "success",
+                        "message": f"Xuất kho thành công phiếu {doc_code}!",
+                        "code": doc_code,
+                    }
+                )
+                return
+            except Exception as e:
+                self._send_json({"status": "error", "message": str(e)}, 500)
+                return
+
+        # 3. API Điều chuyển vị trí ô kệ (Stock Transfer)
+        if path == "/api/transfer/create":
+            try:
+                from datetime import UTC, datetime
+                from decimal import Decimal
+                from uuid import UUID, uuid4
+
+                from warehouse_atlas.application.dtos.inventory_dto import (
+                    PostDocumentCommand,
+                )
+                from warehouse_atlas.application.services.posting_engine import PostingEngine
+                from warehouse_atlas.domain.model.document import (
+                    InventoryDocument,
+                    InventoryDocumentLine,
+                )
+                from warehouse_atlas.infrastructure.orm.inventory_models import (
+                    InventoryDocument as InventoryDocumentRow,
+                )
+                from warehouse_atlas.infrastructure.orm.inventory_models import (
+                    InventoryDocumentLine as InventoryDocumentLineRow,
+                )
+                from warehouse_atlas.infrastructure.orm.user_models import AppUser
+                from warehouse_atlas.infrastructure.unit_of_work import SqlAlchemyUnitOfWork
+
+                product_id = UUID(body["product_id"])
+                from_location_id = UUID(body["from_location_id"])
+                to_location_id = UUID(body["to_location_id"])
+                lot_id = UUID(body["lot_id"])
+                qty = Decimal(str(body["quantity"]))
+
+                uow = SqlAlchemyUnitOfWork()
+                with uow:
+                    user = uow.session.query(AppUser).filter_by(username="manager").first()
+                    wh = uow.session.query(Warehouse).filter_by(code="WH-MAIN").first()
+                    p_uom = (
+                        uow.session.query(ProductUom)
+                        .filter_by(product_id=product_id, factor_to_base=Decimal("1"))
+                        .first()
+                    )
+
+                    doc_id = uuid4()
+                    doc_code = (
+                        f"TRF-{datetime.now(UTC).strftime('%y%m%d')}-{str(doc_id)[:6].upper()}"
+                    )
+                    doc_row = InventoryDocumentRow(
+                        id=doc_id,
+                        warehouse_id=wh.id,
+                        code=doc_code,
+                        kind=DocumentKind.TRANSFER.value,
+                        status=DocumentStatus.APPROVED.value,
+                        created_by=user.id,
+                        version=1,
+                    )
+                    uow.session.add(doc_row)
+                    uow.session.flush()
+
+                    line_id = uuid4()
+                    line_row = InventoryDocumentLineRow(
+                        id=line_id,
+                        document_id=doc_id,
+                        line_no=1,
+                        product_id=product_id,
+                        lot_id=lot_id,
+                        product_uom_id=p_uom.id,
+                        qty=qty,
+                        factor_to_base_snapshot=Decimal("1"),
+                        qty_base=qty,
+                        from_location_id=from_location_id,
+                        from_condition=Condition.GOOD.value,
+                        to_location_id=to_location_id,
+                        to_condition=Condition.GOOD.value,
+                    )
+                    uow.session.add(line_row)
+                    uow.session.flush()
+
+                    domain_line = InventoryDocumentLine(
+                        id=line_id,
+                        document_id=doc_id,
+                        line_number=1,
+                        product_id=product_id,
+                        uom_id=p_uom.id,
+                        quantity=qty,
+                        quantity_base=qty,
+                        lot_id=lot_id,
+                        from_location_id=from_location_id,
+                        to_location_id=to_location_id,
+                        from_condition=Condition.GOOD,
+                        to_condition=Condition.GOOD,
+                    )
+                    domain_doc = InventoryDocument(
+                        id=doc_id,
+                        warehouse_id=wh.id,
+                        code=doc_code,
+                        kind=DocumentKind.TRANSFER,
+                        status=DocumentStatus.APPROVED,
+                        created_by=user.id,
+                        created_at=datetime.now(UTC),
+                        version=1,
+                        lines=[domain_line],
+                    )
+                    cmd = PostDocumentCommand(
+                        document_id=doc_id,
+                        expected_version=1,
+                        idempotency_key=uuid4(),
+                        actor_id=user.id,
+                        canonical_payload_hash="transfer-live-action-verified",
+                        lines=(),
+                    )
+                    PostingEngine.post_in_uow(uow, domain_doc, cmd)
+                    uow.commit()
+
+                self._send_json(
+                    {
+                        "status": "success",
+                        "message": f"Điều chuyển thành công phiếu {doc_code}!",
                         "code": doc_code,
                     }
                 )

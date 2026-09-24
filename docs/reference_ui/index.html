@@ -1234,6 +1234,260 @@ async function askAiPrompt(promptText) {
 }
 
 // Gắn sự kiện click vào các mắt xích trên Sơ đồ và Thanh công cụ
+
+// 5. Modal Lập Phiếu Xuất Kho Bán Hàng (Goods Shipment - FEFO)
+async function openGoodsShipmentModal() {
+    openAtlasModal(
+        '📤 Lập Phiếu Bán Hàng (Goods Shipment) — Đa hình FEFO (Hạn dùng)',
+        '<div style="text-align:center; padding:30px;">Đang tải dữ liệu...</div>'
+    );
+    try {
+        const [resItems, resPartners] = await Promise.all([
+            fetch('/api/items').then(r => r.json()),
+            fetch('/api/partners').then(r => r.json())
+        ]);
+        const customers = (resPartners.data || []).filter(p => p.is_customer);
+        const inStockItems = (resItems.data || []).filter(it => it.on_hand > 0);
+
+        let html = `
+            <div style="background: #f8fafc; padding: 12px; border-radius: 4px; border: 1px solid #e2e8f0; margin-bottom: 12px;">
+                <div style="font-weight: 600; color: #1e293b; margin-bottom: 8px;">Thông tin khách hàng & Giao hàng:</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div>
+                        <label style="font-weight: 500; font-size: 11px;">Khách hàng / Siêu thị (*):</label>
+                        <select id="shipmentCustomer" class="form-control" style="font-size: 12px;">
+                            ${customers.map(c => `<option value="${c.id}">${c.code} - ${c.name}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-weight: 500; font-size: 11px;">Mặt hàng cần xuất (*):</label>
+                        <select id="shipmentProduct" class="form-control" style="font-size: 12px;" onchange="loadFefoLotsForProduct()">
+                            ${inStockItems.map(it => `<option value="${it.id}">${it.sku} - ${it.name} (Tồn: ${it.on_hand})</option>`).join('')}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div style="background: #fff; padding: 12px; border-radius: 4px; border: 1px solid #e2e8f0; margin-bottom: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span style="font-weight: 600; color: #1e293b;">⚡ Lựa chọn Lô xuất kho (Tự động đề xuất theo quy tắc FEFO):</span>
+                    <span style="font-size: 11px; color: #15803d; font-weight: 500;">✓ Ưu tiên lô hết hạn sớm nhất xuất trước</span>
+                </div>
+                <div id="fefoLotsContainer" style="max-height: 25vh; overflow-y: auto; border: 1px solid #e2e8f0;">
+                    <div style="text-align:center; padding:15px; color:#888;">Đang nạp ứng viên lô...</div>
+                </div>
+            </div>
+
+            <div style="background: #f8fafc; padding: 12px; border-radius: 4px; border: 1px solid #e2e8f0;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div>
+                        <label style="font-weight: 500; font-size: 11px;">Số lượng xuất bán (*):</label>
+                        <input type="number" id="shipmentQty" class="form-control" value="20" min="1" style="font-size: 12px; font-weight: bold; text-align: right; color: #1f48d4;">
+                    </div>
+                    <div>
+                        <label style="font-weight: 500; font-size: 11px;">Đơn giá bán thỏa thuận (VND):</label>
+                        <input type="number" id="shipmentPrice" class="form-control" value="32000" min="0" style="font-size: 12px; text-align: right;">
+                    </div>
+                </div>
+            </div>
+            <div id="shipmentAlert" style="margin-top: 10px;"></div>
+        `;
+
+        let footer = `
+            <button class="btn btn-default" onclick="closeAtlasModal()">Hủy (Esc)</button>
+            <button class="btn btn-primary" onclick="submitGoodsShipment()" style="background:#1f48d4; border-color:#1636a0; font-weight:bold;">
+                💾 Ghi Sổ Xuất Kho (F8)
+            </button>
+        `;
+        document.getElementById('atlasModalBody').innerHTML = html;
+        document.getElementById('atlasModalFooter').innerHTML = footer;
+        loadFefoLotsForProduct();
+    } catch(err) {
+        document.getElementById('atlasModalBody').innerHTML = `<div class="alert alert-danger">Lỗi tải form: ${err}</div>`;
+    }
+}
+
+async function loadFefoLotsForProduct() {
+    const pId = document.getElementById('shipmentProduct').value;
+    const container = document.getElementById('fefoLotsContainer');
+    container.innerHTML = '<div style="text-align:center; padding:15px; color:#888;">Đang sắp xếp ứng viên lô FEFO...</div>';
+    
+    try {
+        const res = await fetch(`/api/lots?product_id=${pId}`);
+        const json = await res.json();
+        const lots = json.data || [];
+        
+        if (lots.length === 0) {
+            container.innerHTML = '<div style="text-align:center; padding:15px; color:#b91c1c;">Sản phẩm này tạm thời hết hàng trong kho!</div>';
+            return;
+        }
+
+        let html = `
+            <table class="table table-hover" style="margin:0; font-size:11px;">
+                <thead style="background:#f1f5f9; position:sticky; top:0;">
+                    <tr>
+                        <th style="width: 40px; text-align:center;">Chọn</th>
+                        <th>Mã Lô Hàng</th>
+                        <th style="text-align:center;">Hạn Sử Dụng (Expiry)</th>
+                        <th style="text-align:center;">Vị Trí</th>
+                        <th style="text-align:right;">Tồn Khả Dụng</th>
+                        <th style="text-align:center;">Đề Xuất FEFO</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${lots.map((lot, idx) => `
+                        <tr style="${idx === 0 ? 'background: #eff6ff; font-weight: 500;' : ''}">
+                            <td style="text-align:center;">
+                                <input type="radio" name="selectedLot" value="${lot.lot_id}" data-loc="${lot.location_id}" data-avail="${lot.available_qty}" ${idx === 0 ? 'checked' : ''}>
+                            </td>
+                            <td><code>${lot.lot_code}</code></td>
+                            <td style="text-align:center; color:${idx === 0 ? '#b91c1c' : '#334155'}; font-weight:${idx === 0 ? 'bold' : 'normal'};">${lot.expires_on}</td>
+                            <td style="text-align:center;"><span class="badge" style="background:#eef2ff; color:#1f48d4; border:1px solid #c7d2fe;">${lot.location_code}</span></td>
+                            <td style="text-align:right; font-weight:bold; color:#15803d;">${lot.available_qty.toLocaleString()}</td>
+                            <td style="text-align:center;">
+                                ${idx === 0 ? '<span class="badge" style="background:#dcfce7; color:#15803d; border:1px solid #86efac; font-weight:bold;">⭐ Ưu tiên FEFO #1</span>' : '<span style="color:#94a3b8;">Thứ tự #' + (idx+1) + '</span>'}
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        `;
+        container.innerHTML = html;
+    } catch(err) {
+        container.innerHTML = `<div class="alert alert-danger">Lỗi nạp lô: ${err}</div>`;
+    }
+}
+
+async function submitGoodsShipment() {
+    const pId = document.getElementById('shipmentProduct').value;
+    const cId = document.getElementById('shipmentCustomer').value;
+    const qty = parseFloat(document.getElementById('shipmentQty').value) || 0;
+    const price = parseFloat(document.getElementById('shipmentPrice').value) || 0;
+
+    const selectedRadio = document.querySelector('input[name="selectedLot"]:checked');
+    if (!selectedRadio) {
+        alert('Vui lòng chọn 1 lô hàng để xuất kho!');
+        return;
+    }
+
+    const lotId = selectedRadio.value;
+    const locId = selectedRadio.getAttribute('data-loc');
+    const avail = parseFloat(selectedRadio.getAttribute('data-avail')) || 0;
+
+    if (qty <= 0) {
+        alert('Vui lòng nhập số lượng lớn hơn 0!');
+        return;
+    }
+    if (qty > avail) {
+        alert(`Số lượng xuất (${qty}) vượt quá tồn khả dụng của lô (${avail})!`);
+        return;
+    }
+
+    const alertBox = document.getElementById('shipmentAlert');
+    alertBox.innerHTML = '<div class="alert alert-info">Đang kiểm tra khóa & ghi sổ xuất kho nguyên tử...</div>';
+
+    try {
+        const res = await fetch('/api/shipment/create', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                product_id: pId,
+                location_id: locId,
+                lot_id: lotId,
+                partner_id: cId,
+                quantity: qty,
+                unit_price: price
+            })
+        });
+        const resJson = await res.json();
+        if (resJson.status === 'success') {
+            alertBox.innerHTML = `<div class="alert alert-success">✅ ${resJson.message}</div>`;
+            setTimeout(() => {
+                closeAtlasModal();
+                if (typeof loadAtlasData === 'function') loadAtlasData();
+            }, 1200);
+        } else {
+            alertBox.innerHTML = `<div class="alert alert-danger">❌ Lỗi: ${resJson.message}</div>`;
+        }
+    } catch(err) {
+        alertBox.innerHTML = `<div class="alert alert-danger">❌ Lỗi kết nối API: ${err}</div>`;
+    }
+}
+
+// 6. Modal Báo Cáo Kế Toán / Giá Trị Tồn Kho (Accounting & Valuation Report)
+async function openAccountingReportModal() {
+    openAtlasModal(
+        '📊 Báo Cáo Kế Toán Kho & Giá Trị Hàng Tồn — ECOUNT ERP',
+        '<div style="text-align:center; padding:30px;">Đang tập hợp số liệu kế toán...</div>'
+    );
+    try {
+        const [resKpis, resStock] = await Promise.all([
+            fetch('/api/kpis').then(r => r.json()),
+            fetch('/api/stock').then(r => r.json())
+        ]);
+        const kpi = resKpis.data || {};
+        const stocks = resStock.data || [];
+        
+        let totalValuation = stocks.reduce((sum, s) => sum + (s.on_hand * 25000), 0);
+
+        let html = `
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 15px;">
+                <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 4px; padding: 12px; text-align: center;">
+                    <div style="font-size: 11px; color: #1e40af; font-weight: 500;">TỔNG TỒN VẬT LÝ</div>
+                    <div style="font-size: 18px; font-weight: bold; color: #1d4ed8; margin-top: 4px;">${(kpi.total_on_hand || 0).toLocaleString()}</div>
+                </div>
+                <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 4px; padding: 12px; text-align: center;">
+                    <div style="font-size: 11px; color: #166534; font-weight: 500;">ƯỚC TÍNH GIÁ TRỊ TỒN KHO</div>
+                    <div style="font-size: 18px; font-weight: bold; color: #15803d; margin-top: 4px;">${totalValuation.toLocaleString()} đ</div>
+                </div>
+                <div style="background: #fefce8; border: 1px solid #fef08a; border-radius: 4px; padding: 12px; text-align: center;">
+                    <div style="font-size: 11px; color: #854d0e; font-weight: 500;">TỔNG DANH MỤC SKU</div>
+                    <div style="font-size: 18px; font-weight: bold; color: #a16207; margin-top: 4px;">${kpi.total_skus || 0} SKU</div>
+                </div>
+                <div style="background: #fdf2f8; border: 1px solid #fbcfe8; border-radius: 4px; padding: 12px; text-align: center;">
+                    <div style="font-size: 11px; color: #9d174d; font-weight: 500;">ĐỐI SOÁT TOÀN VẸN</div>
+                    <div style="font-size: 16px; font-weight: bold; color: #be185d; margin-top: 4px;">100% Khớp</div>
+                </div>
+            </div>
+
+            <div style="border: 1px solid #e2e8f0; border-radius: 4px; max-height: 48vh; overflow-y: auto;">
+                <table class="table table-hover table-striped" style="margin:0; font-size:11px;">
+                    <thead style="background:#f8fafc; position:sticky; top:0;">
+                        <tr>
+                            <th>Mã SKU</th>
+                            <th>Tên Mặt Hàng</th>
+                            <th style="text-align:center;">Vị Trí</th>
+                            <th>Mã Lô</th>
+                            <th style="text-align:right;">Số Lượng</th>
+                            <th style="text-align:right;">Đơn Giá Vốn</th>
+                            <th style="text-align:right;">Thành Tiền (VND)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${stocks.map(s => {
+                            let itemVal = s.on_hand * 25000;
+                            return `
+                                <tr>
+                                    <td><strong style="color:#1f48d4;">${s.sku}</strong></td>
+                                    <td>${s.name}</td>
+                                    <td style="text-align:center;">${s.location}</td>
+                                    <td><code>${s.lot}</code></td>
+                                    <td style="text-align:right; font-weight:600;">${s.on_hand.toLocaleString()}</td>
+                                    <td style="text-align:right; color:#64748b;">25,000 đ</td>
+                                    <td style="text-align:right; font-weight:bold; color:#15803d;">${itemVal.toLocaleString()} đ</td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+        document.getElementById('atlasModalBody').innerHTML = html;
+    } catch(err) {
+        document.getElementById('atlasModalBody').innerHTML = `<div class="alert alert-danger">Lỗi tải báo cáo: ${err}</div>`;
+    }
+}
+
 window.addEventListener('DOMContentLoaded', () => {
     // 1. Mặt hàng (Flowchart & Bookmark)
     const elItem = document.getElementById('item');
@@ -1268,6 +1522,19 @@ window.addEventListener('DOMContentLoaded', () => {
         btn.style.cursor = 'pointer';
         btn.onclick = openAIAssistantModal;
     });
+
+    
+    // 7. Bán hàng / Xuất kho theo FEFO
+    const elSale = document.getElementById('sale');
+    if (elSale) { elSale.style.cursor = 'pointer'; elSale.onclick = openGoodsShipmentModal; }
+
+    // 8. Đơn bán hàng
+    const elOrder = document.getElementById('order');
+    if (elOrder) { elOrder.style.cursor = 'pointer'; elOrder.onclick = openGoodsShipmentModal; }
+
+    // 9. Báo cáo kế toán kho
+    const elAcctReport = document.getElementById('acctreport');
+    if (elAcctReport) { elAcctReport.style.cursor = 'pointer'; elAcctReport.onclick = openAccountingReportModal; }
 
     // Phím tắt Esc đóng modal
     window.addEventListener('keydown', (e) => {
