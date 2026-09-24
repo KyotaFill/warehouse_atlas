@@ -1,7 +1,6 @@
-# Warehouse Atlas — Hệ Thống Quản Lý Kho Thông Minh (Desktop WMS)
+# Hệ Thống Quản Lý Kho Thông Minh 
 
-> **Ứng dụng desktop điều hành kho phân phối hàng đóng gói theo lô**  
-> Xây dựng bằng **Python 3.12 + Tkinter/ttk + PostgreSQL 16+ + SQLAlchemy 2.0** theo kiến trúc **Modular Monolith / Hexagonal (Ports & Adapters)**.
+
 
 ---
 
