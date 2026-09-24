@@ -383,6 +383,13 @@ class EcountBackendHandler(http.server.SimpleHTTPRequestHandler):
         # File tĩnh mặc định (HTML, CSS, JS, Images, Fonts)
         super().do_GET()
 
+    def do_OPTIONS(self) -> None:  # noqa: N802
+        self.send_response(200)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "*")
+        self.end_headers()
+
     def do_POST(self) -> None:  # noqa: N802
         path = self.path.split("?")[0]
         content_length = int(self.headers.get("Content-Length", 0))
@@ -783,6 +790,26 @@ class EcountBackendHandler(http.server.SimpleHTTPRequestHandler):
                         "code": doc_code,
                     }
                 )
+                return
+            except Exception as e:
+                self._send_json({"status": "error", "message": str(e)}, 500)
+                return
+
+        # 4. API Nhận và Lưu trữ Snapshot HTML/CSS từ Crawler
+        if path == "/api/save_snapshot":
+            try:
+                cat_name = body.get("category", "general")
+                item_name = body.get("name", "unnamed")
+                html_content = body.get("html", "")
+
+                target_dir = UI_DIR / "crawled_snapshots" / cat_name
+                target_dir.mkdir(parents=True, exist_ok=True)
+
+                safe_filename = "".join(c if c.isalnum() or c in "._-" else "_" for c in item_name)
+                file_path = target_dir / f"{safe_filename}.html"
+                file_path.write_text(html_content, encoding="utf-8")
+
+                self._send_json({"status": "success", "saved_path": str(file_path)})
                 return
             except Exception as e:
                 self._send_json({"status": "error", "message": str(e)}, 500)
