@@ -1,0 +1,70 @@
+from enum import StrEnum
+
+
+class Condition(StrEnum):
+    GOOD = "GOOD"
+    QUARANTINE = "QUARANTINE"
+    DAMAGED = "DAMAGED"
+
+
+class DocumentKind(StrEnum):
+    OPENING = "OPENING"
+    RECEIPT = "RECEIPT"
+    SHIPMENT = "SHIPMENT"
+    TRANSFER = "TRANSFER"
+    RECLASSIFY = "RECLASSIFY"
+    ADJUSTMENT = "ADJUSTMENT"
+    CUSTOMER_RETURN = "CUSTOMER_RETURN"
+    SUPPLIER_RETURN = "SUPPLIER_RETURN"
+    REVERSAL = "REVERSAL"
+
+
+class DocumentStatus(StrEnum):
+    DRAFT = "DRAFT"
+    APPROVED = "APPROVED"
+    POSTED = "POSTED"
+    CANCELLED = "CANCELLED"
+
+
+class OrderStatus(StrEnum):
+    DRAFT = "DRAFT"
+    CONFIRMED = "CONFIRMED"
+    PARTIALLY_FULFILLED = "PARTIALLY_FULFILLED"
+    FULFILLED = "FULFILLED"
+    CANCELLED = "CANCELLED"
+
+
+class StocktakeStatus(StrEnum):
+    DRAFT = "DRAFT"
+    COUNTING = "COUNTING"
+    REVIEW = "REVIEW"
+    POSTED = "POSTED"
+    CANCELLED = "CANCELLED"
+
+
+class ReservationStatus(StrEnum):
+    ACTIVE = "ACTIVE"
+    PARTIALLY_CONSUMED = "PARTIALLY_CONSUMED"
+    CONSUMED = "CONSUMED"
+    RELEASED = "RELEASED"
+    EXPIRED = "EXPIRED"
+
+
+class RoleName(StrEnum):
+    MANAGER = "MANAGER"
+    RECEIVER = "RECEIVER"
+    PICKER = "PICKER"
+    ADMIN = "ADMIN"
+
+
+class LocationType(StrEnum):
+    WAREHOUSE = "WAREHOUSE"
+    ZONE = "ZONE"
+    AISLE = "AISLE"
+    RACK = "RACK"
+    SHELF = "SHELF"
+    BIN = "BIN"
+    RECEIVING_DOCK = "RECEIVING_DOCK"
+    SHIPPING_DOCK = "SHIPPING_DOCK"
+    STAGING = "STAGING"
+    HOLD = "HOLD"

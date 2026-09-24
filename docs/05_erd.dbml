@@ -1,0 +1,690 @@
+Project WarehouseAtlas {
+  database_type: 'PostgreSQL'
+  Note: 'Core: 27 tables. Extensions: 10 tables. SQL is authoritative for CHECK constraints and partial indexes.'
+}
+
+Table app_role {
+  id uuid [pk, not null, default: `gen_random_uuid()`, note: 'Khóa nội bộ; không dùng mã hiển thị làm khóa ngoại.']
+  code text [not null, unique]
+  name text [not null]
+  Note: 'CORE: Ba vai trò cố định: ADMIN, MANAGER, OPERATOR; quyền ánh xạ trong policy của ứng dụng. Constraints: '
+}
+
+Table app_user {
+  id uuid [pk, not null, default: `gen_random_uuid()`, note: 'Khóa nội bộ; không dùng mã hiển thị làm khóa ngoại.']
+  username text [not null, unique, note: 'Service chuẩn hóa lowercase trước khi ghi.']
+  password_hash text [not null, note: 'Hash mật khẩu, không lưu mật khẩu thô.']
+  display_name text [not null]
+  is_active boolean [not null, default: `true`]
+  created_at timestamptz [not null, default: `now()`, note: 'Thời điểm hệ thống ghi nhận, lưu UTC.']
+  Note: 'CORE: Tài khoản của người vận hành; vô hiệu hóa thay vì xóa. Constraints: '
+}
+
+Table user_role {
+  user_id uuid [not null]
+  role_id uuid [not null]
+  indexes {
+    (user_id, role_id) [pk]
+  }
+  Note: 'CORE: Quan hệ nhiều-nhiều giữa tài khoản và vai trò. Constraints: '
+}
+
+Table category {
+  id uuid [pk, not null, default: `gen_random_uuid()`, note: 'Khóa nội bộ; không dùng mã hiển thị làm khóa ngoại.']
+  code text [not null, unique]
+  name text [not null]
+  is_active boolean [not null, default: `true`]
+  Note: 'CORE: Nhóm hàng; phiên bản đầu dùng một cấp để giảm độ phức tạp. Constraints: '
+}
+
+Table uom {
+  id uuid [pk, not null, default: `gen_random_uuid()`, note: 'Khóa nội bộ; không dùng mã hiển thị làm khóa ngoại.']
+  code text [not null, unique]
+  name text [not null]
+  decimal_places integer [not null, default: `0`, note: '0 cho hàng đếm chiếc, tối đa 4 chữ số lẻ.']
+  Note: 'CORE: Đơn vị đo: chai, gói, thùng, kg; mỗi SKU có một đơn vị tồn chuẩn. Constraints: decimal_places BETWEEN 0 AND 4'
+}
+
+Table product {
+  id uuid [pk, not null, default: `gen_random_uuid()`, note: 'Khóa nội bộ; không dùng mã hiển thị làm khóa ngoại.']
+  sku text [not null, unique]
+  name text [not null]
+  category_id uuid [not null]
+  base_uom_id uuid [not null]
+  track_expiry boolean [not null, default: `false`]
+  min_shelf_life_days integer [not null, default: `0`, note: 'Hạn còn tối thiểu khi xuất; 0 vẫn phải chưa hết hạn.']
+  is_active boolean [not null, default: `true`]
+  created_at timestamptz [not null, default: `now()`, note: 'Thời điểm hệ thống ghi nhận, lưu UTC.']
+  version integer [not null, default: `1`, note: 'Tăng mỗi lần sửa; dùng kiểm tra xung đột bản nháp.']
+  Note: 'CORE: Một hàng tương ứng một SKU bán được; không chứa cột số lượng tồn. Constraints: min_shelf_life_days >= 0'
+}
+
+Table product_uom {
+  id uuid [pk, not null, default: `gen_random_uuid()`, note: 'Khóa nội bộ; không dùng mã hiển thị làm khóa ngoại.']
+  product_id uuid [not null]
+  uom_id uuid [not null]
+  factor_to_base numeric(18,4) [not null, note: '1 thùng = 24 chai thì factor=24.']
+  indexes {
+    (product_id, uom_id) [unique]
+    (id, product_id) [unique]
+  }
+  Note: 'CORE: Quy đổi theo SKU; thùng của SKU A không nhất thiết bằng thùng của SKU B. Constraints: factor_to_base > 0'
+}
+
+Table product_barcode {
+  id uuid [pk, not null, default: `gen_random_uuid()`, note: 'Khóa nội bộ; không dùng mã hiển thị làm khóa ngoại.']
+  code text [not null, unique]
+  product_uom_id uuid [not null]
+  is_active boolean [not null, default: `true`]
+  Note: 'CORE: Barcode nhận diện SKU và quy cách đóng gói; QR lô dùng mã lot riêng. Constraints: '
+}
+
+Table partner {
+  id uuid [pk, not null, default: `gen_random_uuid()`, note: 'Khóa nội bộ; không dùng mã hiển thị làm khóa ngoại.']
+  code text [not null, unique]
+  name text [not null]
+  is_supplier boolean [not null, default: `false`]
+  is_customer boolean [not null, default: `false`]
+  phone text
+  email text
+  address text
+  is_active boolean [not null, default: `true`]
+  Note: 'CORE: Một đối tác có thể đồng thời là nhà cung cấp và khách hàng. Constraints: is_supplier OR is_customer'
+}
+
+Table supplier_product {
+  id uuid [pk, not null, default: `gen_random_uuid()`, note: 'Khóa nội bộ; không dùng mã hiển thị làm khóa ngoại.']
+  supplier_id uuid [not null]
+  product_id uuid [not null]
+  supplier_sku text
+  lead_time_days integer [not null]
+  moq_base numeric(18,4) [not null, default: `0`, note: 'Số lượng đặt tối thiểu theo đơn vị chuẩn.']
+  order_multiple_base numeric(18,4) [not null, default: `1`, note: 'Bội số đặt hàng theo đơn vị chuẩn.']
+  quoted_unit_cost numeric(18,4) [note: 'VND trên một đơn vị chuẩn.']
+  is_preferred boolean [not null, default: `false`]
+  indexes {
+    (supplier_id, product_id) [unique]
+  }
+  Note: 'CORE: Danh mục cung ứng để gợi ý mua; giá ở đây chỉ là báo giá tham khảo hiện tại. Constraints: lead_time_days >= 0; moq_base >= 0; order_multiple_base > 0; quoted_unit_cost IS NULL OR quoted_unit_cost >= 0'
+}
+
+Table warehouse {
+  id uuid [pk, not null, default: `gen_random_uuid()`, note: 'Khóa nội bộ; không dùng mã hiển thị làm khóa ngoại.']
+  code text [not null, unique]
+  name text [not null]
+  timezone text [not null, default: `'Asia/Ho_Chi_Minh'`]
+  is_active boolean [not null, default: `true`]
+  Note: 'CORE: Đơn vị kho; seed 1 kho chính và 1 kho phụ để kiểm chứng chuyển kho. Constraints: '
+}
+
+Table location {
+  id uuid [pk, not null, default: `gen_random_uuid()`, note: 'Khóa nội bộ; không dùng mã hiển thị làm khóa ngoại.']
+  warehouse_id uuid [not null]
+  parent_id uuid [note: 'FK ghép bảo đảm cha cùng kho.']
+  code text [not null]
+  name text [not null]
+  usage text [not null, note: 'STRUCTURAL, STORAGE, RECEIVING, DISPATCH hoặc TRANSIT.']
+  is_active boolean [not null, default: `true`]
+  indexes {
+    (warehouse_id, code) [unique]
+    (id, warehouse_id) [unique]
+  }
+  Note: 'CORE: Cây vị trí trong cùng warehouse; node cấu trúc không được chứa tồn. Constraints: usage IN (\'STRUCTURAL\',\'STORAGE\',\'RECEIVING\',\'DISPATCH\',\'TRANSIT\'); parent_id IS NULL OR parent_id <> id'
+}
+
+Table lot {
+  id uuid [pk, not null, default: `gen_random_uuid()`, note: 'Khóa nội bộ; không dùng mã hiển thị làm khóa ngoại.']
+  product_id uuid [not null]
+  code text [not null, unique]
+  manufacturer_lot_code text [note: 'Mã dùng tìm tất cả lô con khi thu hồi.']
+  supplier_id uuid
+  manufactured_on date
+  expires_on date [note: 'NULL nếu hàng không theo dõi hạn.']
+  received_at timestamptz [not null, note: 'Thời điểm lần nhập gốc; không đổi khi chuyển vị trí.']
+  unit_cost numeric(18,4) [not null, note: 'Giá nhập trên một đơn vị chuẩn; cố định sau nhập đầu tiên.']
+  recall_status text [not null, default: `'ACTIVE'`]
+  block_reason text
+  created_at timestamptz [not null, default: `now()`, note: 'Thời điểm hệ thống ghi nhận, lưu UTC.']
+  indexes {
+    (id, product_id) [unique]
+  }
+  Note: 'CORE: Lô nội bộ gắn SKU và một lần nhận hàng/giá nhận. Cùng mã lô nhà sản xuất có thể có nhiều lot nội bộ. Constraints: unit_cost >= 0; recall_status IN (\'ACTIVE\',\'BLOCKED\'); manufactured_on IS NULL OR expires_on IS NULL OR manufactured_on <= expires_on'
+}
+
+Table purchase_order {
+  id uuid [pk, not null, default: `gen_random_uuid()`, note: 'Khóa nội bộ; không dùng mã hiển thị làm khóa ngoại.']
+  code text [not null, unique]
+  supplier_id uuid [not null]
+  warehouse_id uuid [not null]
+  status text [not null, default: `'DRAFT'`]
+  expected_on date
+  created_by uuid [not null]
+  created_at timestamptz [not null, default: `now()`, note: 'Thời điểm hệ thống ghi nhận, lưu UTC.']
+  version integer [not null, default: `1`, note: 'Tăng mỗi lần sửa; dùng kiểm tra xung đột bản nháp.']
+  Note: 'CORE: Cam kết mua/bán; xác nhận đơn chưa làm thay đổi tồn thực tế. Constraints: status IN (\'DRAFT\',\'CONFIRMED\',\'CLOSED\',\'CANCELLED\')'
+}
+
+Table purchase_order_line {
+  id uuid [pk, not null, default: `gen_random_uuid()`, note: 'Khóa nội bộ; không dùng mã hiển thị làm khóa ngoại.']
+  order_id uuid [not null]
+  line_no integer [not null]
+  product_id uuid [not null]
+  product_uom_id uuid [not null, note: 'FK ghép tới product_uom bảo đảm đúng SKU.']
+  ordered_qty numeric(18,4) [not null, note: 'Số lượng theo đơn vị người nhập.']
+  factor_to_base_snapshot numeric(18,4) [not null, note: 'Đóng băng hệ số để lịch sử không đổi khi sửa quy cách.']
+  unit_price numeric(18,4) [not null, note: 'VND theo đơn vị người nhập; không trộn với giá vốn lot.']
+  closed_qty_base numeric(18,4) [not null, default: `0`, note: 'Phần đơn đóng thiếu có lý do, không được tính như đã giao.']
+  close_reason text
+  indexes {
+    (order_id, line_no) [unique]
+    (id, product_id) [unique]
+  }
+  Note: 'CORE: Dòng đặt hàng; received/shipped/outstanding được tính từ các chứng từ đã ghi sổ. Constraints: line_no > 0; ordered_qty > 0; factor_to_base_snapshot > 0; unit_price >= 0; closed_qty_base >= 0; closed_qty_base <= ordered_qty * factor_to_base_snapshot'
+}
+
+Table sales_order {
+  id uuid [pk, not null, default: `gen_random_uuid()`, note: 'Khóa nội bộ; không dùng mã hiển thị làm khóa ngoại.']
+  code text [not null, unique]
+  customer_id uuid [not null]
+  warehouse_id uuid [not null]
+  status text [not null, default: `'DRAFT'`]
+  expected_on date
+  created_by uuid [not null]
+  created_at timestamptz [not null, default: `now()`, note: 'Thời điểm hệ thống ghi nhận, lưu UTC.']
+  version integer [not null, default: `1`, note: 'Tăng mỗi lần sửa; dùng kiểm tra xung đột bản nháp.']
+  Note: 'CORE: Cam kết mua/bán; xác nhận đơn chưa làm thay đổi tồn thực tế. Constraints: status IN (\'DRAFT\',\'CONFIRMED\',\'CLOSED\',\'CANCELLED\')'
+}
+
+Table sales_order_line {
+  id uuid [pk, not null, default: `gen_random_uuid()`, note: 'Khóa nội bộ; không dùng mã hiển thị làm khóa ngoại.']
+  order_id uuid [not null]
+  line_no integer [not null]
+  product_id uuid [not null]
+  product_uom_id uuid [not null, note: 'FK ghép tới product_uom bảo đảm đúng SKU.']
+  ordered_qty numeric(18,4) [not null, note: 'Số lượng theo đơn vị người nhập.']
+  factor_to_base_snapshot numeric(18,4) [not null, note: 'Đóng băng hệ số để lịch sử không đổi khi sửa quy cách.']
+  unit_price numeric(18,4) [not null, note: 'VND theo đơn vị người nhập; không trộn với giá vốn lot.']
+  closed_qty_base numeric(18,4) [not null, default: `0`, note: 'Phần đơn đóng thiếu có lý do, không được tính như đã giao.']
+  close_reason text
+  indexes {
+    (order_id, line_no) [unique]
+    (id, product_id) [unique]
+  }
+  Note: 'CORE: Dòng đặt hàng; received/shipped/outstanding được tính từ các chứng từ đã ghi sổ. Constraints: line_no > 0; ordered_qty > 0; factor_to_base_snapshot > 0; unit_price >= 0; closed_qty_base >= 0; closed_qty_base <= ordered_qty * factor_to_base_snapshot'
+}
+
+Table inventory_document {
+  id uuid [pk, not null, default: `gen_random_uuid()`, note: 'Khóa nội bộ; không dùng mã hiển thị làm khóa ngoại.']
+  code text [not null, unique]
+  kind text [not null]
+  status text [not null, default: `'DRAFT'`]
+  partner_id uuid
+  reversal_of_id uuid
+  idempotency_key uuid [unique, note: 'Khóa yêu cầu ghi sổ, dùng lại khi retry.']
+  posting_payload_hash text [note: 'Hash payload chuẩn hóa, phát hiện reuse key với nội dung khác.']
+  reason text
+  created_by uuid [not null]
+  approved_by uuid
+  posted_by uuid
+  posted_at timestamptz
+  created_at timestamptz [not null, default: `now()`, note: 'Thời điểm hệ thống ghi nhận, lưu UTC.']
+  version integer [not null, default: `1`, note: 'Tăng mỗi lần sửa; dùng kiểm tra xung đột bản nháp.']
+  indexes {
+    (reversal_of_id) [unique]
+  }
+  Note: 'CORE: Phiếu nhập, xuất, chuyển, đổi trạng thái, kiểm kê, trả hàng hoặc bút toán đảo. Constraints: kind IN (\'OPENING\',\'RECEIPT\',\'SHIPMENT\',\'TRANSFER\',\'RECLASSIFY\',\'ADJUSTMENT\',\'CUSTOMER_RETURN\',\'SUPPLIER_RETURN\',\'REVERSAL\'); status IN (\'DRAFT\',\'APPROVED\',\'POSTED\',\'CANCELLED\'); status <> \'POSTED\' OR (posted_at IS NOT NULL AND posted_by IS NOT NULL AND idempotency_key IS NOT NULL AND posting_payload_hash IS NOT NULL); (kind = \'REVERSAL\') = (reversal_of_id IS NOT NULL); reversal_of_id IS NULL OR reversal_of_id <> id'
+}
+
+Table inventory_document_line {
+  id uuid [pk, not null, default: `gen_random_uuid()`, note: 'Khóa nội bộ; không dùng mã hiển thị làm khóa ngoại.']
+  document_id uuid [not null]
+  line_no integer [not null]
+  product_id uuid [not null]
+  lot_id uuid [not null]
+  product_uom_id uuid [not null]
+  entered_qty numeric(18,4) [not null]
+  factor_to_base_snapshot numeric(18,4) [not null]
+  qty_base numeric(18,4) [not null, note: 'Service kiểm tra chính xác entered_qty × factor, tối đa 4 số lẻ.']
+  from_location_id uuid
+  from_condition text
+  to_location_id uuid
+  to_condition text
+  purchase_order_line_id uuid
+  sales_order_line_id uuid
+  original_line_id uuid [note: 'Trả hàng/đảo gắn dòng gốc; service kiểm tra loại và tổng lượng.']
+  indexes {
+    (document_id, line_no) [unique]
+    (id, product_id, lot_id) [unique]
+  }
+  Note: 'CORE: Một dòng = một SKU, một lô, một cặp vị trí/trạng thái; đơn xuất nhiều lô tạo nhiều dòng. Constraints: line_no > 0; entered_qty > 0; factor_to_base_snapshot > 0; qty_base > 0; qty_base = entered_qty * factor_to_base_snapshot; from_location_id IS NOT NULL OR to_location_id IS NOT NULL; (from_location_id IS NULL) = (from_condition IS NULL); (to_location_id IS NULL) = (to_condition IS NULL); from_condition IS NULL OR from_condition IN (\'GOOD\',\'QUARANTINE\',\'DAMAGED\'); to_condition IS NULL OR to_condition IN (\'GOOD\',\'QUARANTINE\',\'DAMAGED\'); (from_location_id,from_condition) IS DISTINCT FROM (to_location_id,to_condition); NOT (purchase_order_line_id IS NOT NULL AND sales_order_line_id IS NOT NULL)'
+}
+
+Table stock_movement {
+  id uuid [pk, not null, default: `gen_random_uuid()`, note: 'Khóa nội bộ; không dùng mã hiển thị làm khóa ngoại.']
+  document_line_id uuid [not null, unique]
+  product_id uuid [not null]
+  lot_id uuid [not null]
+  from_location_id uuid
+  from_condition text
+  to_location_id uuid
+  to_condition text
+  qty_base numeric(18,4) [not null]
+  reverses_movement_id uuid
+  actor_id uuid [not null]
+  recorded_at timestamptz [not null, default: `clock_timestamp()`, note: 'Mốc replay theo lúc hệ thống ghi nhận; không cho backdate tùy ý.']
+  indexes {
+    (reverses_movement_id) [unique]
+  }
+  Note: 'CORE: Sổ biến động chỉ thêm. Mỗi dòng chứng từ đã ghi sổ sinh một movement; nguồn NULL là từ ngoài kho, đích NULL là ra ngoài kho. Constraints: qty_base > 0; from_location_id IS NOT NULL OR to_location_id IS NOT NULL; (from_location_id IS NULL) = (from_condition IS NULL); (to_location_id IS NULL) = (to_condition IS NULL); from_condition IS NULL OR from_condition IN (\'GOOD\',\'QUARANTINE\',\'DAMAGED\'); to_condition IS NULL OR to_condition IN (\'GOOD\',\'QUARANTINE\',\'DAMAGED\'); (from_location_id,from_condition) IS DISTINCT FROM (to_location_id,to_condition); reverses_movement_id IS NULL OR reverses_movement_id <> id'
+}
+
+Table stock_balance {
+  id uuid [pk, not null, default: `gen_random_uuid()`, note: 'Khóa nội bộ; không dùng mã hiển thị làm khóa ngoại.']
+  product_id uuid [not null]
+  location_id uuid [not null]
+  lot_id uuid [not null]
+  condition text [not null]
+  on_hand numeric(18,4) [not null, default: `0`, note: 'Tồn vật lý.']
+  reserved numeric(18,4) [not null, default: `0`, note: 'Lượng giữ đang hoạt động.']
+  updated_at timestamptz [not null, default: `now()`]
+  version integer [not null, default: `1`, note: 'Tăng mỗi lần sửa; dùng kiểm tra xung đột bản nháp.']
+  indexes {
+    (product_id, location_id, lot_id, condition) [unique]
+    (id, product_id) [unique]
+  }
+  Note: 'CORE: Projection hiện tại, cập nhật trong cùng transaction với movement; có thể rebuild từ sổ. Constraints: condition IN (\'GOOD\',\'QUARANTINE\',\'DAMAGED\'); on_hand >= 0; reserved >= 0; reserved <= on_hand'
+}
+
+Table stock_reservation {
+  id uuid [pk, not null, default: `gen_random_uuid()`, note: 'Khóa nội bộ; không dùng mã hiển thị làm khóa ngoại.']
+  product_id uuid [not null]
+  sales_order_line_id uuid [not null]
+  stock_balance_id uuid [not null]
+  allocated_qty numeric(18,4) [not null]
+  consumed_qty numeric(18,4) [not null, default: `0`]
+  released_qty numeric(18,4) [not null, default: `0`]
+  expires_at timestamptz
+  created_by uuid [not null]
+  created_at timestamptz [not null, default: `now()`, note: 'Thời điểm hệ thống ghi nhận, lưu UTC.']
+  version integer [not null, default: `1`, note: 'Tăng mỗi lần sửa; dùng kiểm tra xung đột bản nháp.']
+  Note: 'CORE: Giữ hàng theo dòng đơn và bucket tồn cụ thể; một reservation có thể được giao từng phần. Constraints: allocated_qty > 0; consumed_qty >= 0; released_qty >= 0; consumed_qty + released_qty <= allocated_qty'
+}
+
+Table reservation_event {
+  id uuid [pk, not null, default: `gen_random_uuid()`, note: 'Khóa nội bộ; không dùng mã hiển thị làm khóa ngoại.']
+  reservation_id uuid [not null]
+  kind text [not null]
+  qty_base numeric(18,4) [not null]
+  document_line_id uuid
+  actor_id uuid [not null]
+  created_at timestamptz [not null, default: `now()`, note: 'Thời điểm hệ thống ghi nhận, lưu UTC.']
+  Note: 'CORE: Nhật ký giữ/tiêu thụ/nhả hàng để audit và tái dựng reserved. Không tự hết hạn chỉ bằng so sánh đồng hồ. Constraints: kind IN (\'ALLOCATE\',\'CONSUME\',\'RELEASE\',\'EXPIRE\'); qty_base > 0; kind <> \'CONSUME\' OR document_line_id IS NOT NULL'
+}
+
+Table stocktake {
+  id uuid [pk, not null, default: `gen_random_uuid()`, note: 'Khóa nội bộ; không dùng mã hiển thị làm khóa ngoại.']
+  code text [not null, unique]
+  location_id uuid [not null]
+  status text [not null, default: `'DRAFT'`]
+  frozen_at timestamptz
+  closed_at timestamptz
+  adjustment_document_id uuid
+  created_by uuid [not null]
+  approved_by uuid
+  created_at timestamptz [not null, default: `now()`, note: 'Thời điểm hệ thống ghi nhận, lưu UTC.']
+  version integer [not null, default: `1`, note: 'Tăng mỗi lần sửa; dùng kiểm tra xung đột bản nháp.']
+  Note: 'CORE: Một phiên đếm tại một vị trí lá; khóa mềm hoạt động ghi kho vào vị trí trong thời gian đếm. Constraints: status IN (\'DRAFT\',\'COUNTING\',\'REVIEW\',\'POSTED\',\'CANCELLED\')'
+}
+
+Table stocktake_line {
+  id uuid [pk, not null, default: `gen_random_uuid()`, note: 'Khóa nội bộ; không dùng mã hiển thị làm khóa ngoại.']
+  stocktake_id uuid [not null]
+  product_id uuid [not null]
+  lot_id uuid [not null]
+  condition text [not null]
+  expected_qty numeric(18,4) [not null]
+  counted_qty numeric(18,4)
+  recounted_qty numeric(18,4)
+  counted_by uuid
+  variance_reason text
+  indexes {
+    (stocktake_id, product_id, lot_id, condition) [unique]
+  }
+  Note: 'CORE: Snapshot lúc khóa, số đếm mù và số đếm lại; hàng tìm thấy chưa có bucket vẫn được ghi theo lô. Constraints: condition IN (\'GOOD\',\'QUARANTINE\',\'DAMAGED\'); expected_qty >= 0; counted_qty IS NULL OR counted_qty >= 0; recounted_qty IS NULL OR recounted_qty >= 0'
+}
+
+Table audit_event {
+  id uuid [pk, not null, default: `gen_random_uuid()`, note: 'Khóa nội bộ; không dùng mã hiển thị làm khóa ngoại.']
+  actor_id uuid
+  action text [not null]
+  entity_type text [not null]
+  entity_id uuid
+  before_data jsonb [not null, default: `'{}'::jsonb`]
+  after_data jsonb [not null, default: `'{}'::jsonb`]
+  reason text
+  correlation_id uuid [not null]
+  created_at timestamptz [not null, default: `now()`, note: 'Thời điểm hệ thống ghi nhận, lưu UTC.']
+  Note: 'CORE: Log thao tác và thay đổi dữ liệu chủ; tham chiếu generic chỉ dùng ở audit, không dùng làm FK nghiệp vụ. Constraints: '
+}
+
+Table reorder_policy {
+  id uuid [pk, not null, default: `gen_random_uuid()`, note: 'Khóa nội bộ; không dùng mã hiển thị làm khóa ngoại.']
+  product_id uuid [not null]
+  warehouse_id uuid [not null]
+  min_qty numeric(18,4) [not null]
+  target_qty numeric(18,4) [not null]
+  safety_stock_qty numeric(18,4) [not null, default: `0`]
+  review_period_days integer [not null, default: `7`]
+  is_active boolean [not null, default: `true`]
+  indexes {
+    (product_id, warehouse_id) [unique]
+  }
+  Note: 'CORE: Chính sách min/max đơn giản, rõ đơn vị; dùng làm baseline cho đề xuất. Constraints: min_qty >= 0; target_qty >= min_qty; safety_stock_qty >= 0; review_period_days > 0'
+}
+
+Table map_node {
+  id uuid [pk, not null, default: `gen_random_uuid()`, note: 'Khóa nội bộ; không dùng mã hiển thị làm khóa ngoại.']
+  warehouse_id uuid [not null]
+  location_id uuid
+  code text [not null]
+  x_m numeric(18,4) [not null]
+  y_m numeric(18,4) [not null]
+  kind text [not null]
+  is_active boolean [not null, default: `true`]
+  indexes {
+    (warehouse_id, code) [unique]
+    (location_id) [unique]
+    (id, warehouse_id) [unique]
+  }
+  Note: 'EXTENSION: Đỉnh đường đi trên sơ đồ 2D; một location chứa hàng nối tới tối đa một node tiếp cận. Constraints: kind IN (\'AISLE\',\'PICK\',\'ENTRY\',\'EXIT\')'
+}
+
+Table map_edge {
+  id uuid [pk, not null, default: `gen_random_uuid()`, note: 'Khóa nội bộ; không dùng mã hiển thị làm khóa ngoại.']
+  warehouse_id uuid [not null]
+  from_node_id uuid [not null]
+  to_node_id uuid [not null]
+  distance_m numeric(18,4) [not null]
+  is_enabled boolean [not null, default: `true`]
+  indexes {
+    (from_node_id, to_node_id) [unique]
+  }
+  Note: 'EXTENSION: Cạnh có hướng; đường hai chiều được biểu diễn bằng hai cạnh. Constraints: distance_m > 0; from_node_id <> to_node_id'
+}
+
+Table pick_run {
+  id uuid [pk, not null, default: `gen_random_uuid()`, note: 'Khóa nội bộ; không dùng mã hiển thị làm khóa ngoại.']
+  sales_order_id uuid [not null]
+  warehouse_id uuid [not null]
+  status text [not null, default: `'PLANNED'`]
+  algorithm text [not null]
+  algorithm_version text [not null]
+  input_hash text [not null]
+  baseline_distance_m numeric(18,4) [not null]
+  planned_distance_m numeric(18,4) [not null]
+  path_snapshot jsonb [not null, default: `'[]'::jsonb`, note: 'Mảng tọa độ/node/đoạn đường để replay sau khi bản đồ thay đổi.']
+  created_by uuid [not null]
+  created_at timestamptz [not null, default: `now()`, note: 'Thời điểm hệ thống ghi nhận, lưu UTC.']
+  Note: 'EXTENSION: Snapshot kế hoạch lấy hàng cho một đơn; đổi reservation hoặc map thì plan cũ cần lập lại. Constraints: status IN (\'PLANNED\',\'IN_PROGRESS\',\'DONE\',\'CANCELLED\'); baseline_distance_m >= 0; planned_distance_m >= 0'
+}
+
+Table pick_stop {
+  id uuid [pk, not null, default: `gen_random_uuid()`, note: 'Khóa nội bộ; không dùng mã hiển thị làm khóa ngoại.']
+  pick_run_id uuid [not null]
+  sequence_no integer [not null]
+  reservation_id uuid [not null]
+  node_id uuid [not null]
+  planned_qty numeric(18,4) [not null]
+  picked_qty numeric(18,4) [not null, default: `0`]
+  picked_at timestamptz
+  indexes {
+    (pick_run_id, sequence_no) [unique]
+  }
+  Note: 'EXTENSION: Dòng checklist quét xác nhận; quét chưa trừ tồn, chỉ shipment POSTED mới trừ. Constraints: sequence_no > 0; planned_qty > 0; picked_qty >= 0; picked_qty <= planned_qty'
+}
+
+Table analysis_run {
+  id uuid [pk, not null, default: `gen_random_uuid()`, note: 'Khóa nội bộ; không dùng mã hiển thị làm khóa ngoại.']
+  kind text [not null]
+  algorithm_version text [not null]
+  data_cutoff_at timestamptz [not null]
+  input_snapshot jsonb [not null, default: `'{}'::jsonb`]
+  parameters jsonb [not null, default: `'{}'::jsonb`]
+  metrics jsonb [not null, default: `'{}'::jsonb`]
+  status text [not null]
+  created_by uuid [not null]
+  created_at timestamptz [not null, default: `now()`, note: 'Thời điểm hệ thống ghi nhận, lưu UTC.']
+  Note: 'EXTENSION: Lưu snapshot đầu vào và thuật toán của phân tích/rule/what-if; chưa mặc định là mô hình ML. Constraints: status IN (\'RUNNING\',\'SUCCEEDED\',\'FAILED\')'
+}
+
+Table inventory_alert {
+  id uuid [pk, not null, default: `gen_random_uuid()`, note: 'Khóa nội bộ; không dùng mã hiển thị làm khóa ngoại.']
+  analysis_run_id uuid [not null]
+  product_id uuid [not null]
+  warehouse_id uuid [not null]
+  lot_id uuid
+  kind text [not null]
+  severity text [not null]
+  status text [not null, default: `'OPEN'`]
+  dedupe_key text [not null]
+  evidence jsonb [not null, default: `'{}'::jsonb`]
+  acknowledged_by uuid
+  created_at timestamptz [not null, default: `now()`, note: 'Thời điểm hệ thống ghi nhận, lưu UTC.']
+  Note: 'EXTENSION: Cảnh báo thiếu, sắp hết hạn, sai lệch; có bằng chứng và khóa chống trùng. Constraints: severity IN (\'INFO\',\'WARNING\',\'CRITICAL\'); status IN (\'OPEN\',\'ACKNOWLEDGED\',\'RESOLVED\')'
+}
+
+Table replenishment_suggestion {
+  id uuid [pk, not null, default: `gen_random_uuid()`, note: 'Khóa nội bộ; không dùng mã hiển thị làm khóa ngoại.']
+  analysis_run_id uuid [not null]
+  product_id uuid [not null]
+  warehouse_id uuid [not null]
+  supplier_id uuid [not null]
+  suggested_qty_base numeric(18,4) [not null]
+  estimated_unit_cost numeric(18,4)
+  reason text [not null]
+  status text [not null, default: `'PROPOSED'`]
+  result_po_line_id uuid
+  evidence jsonb [not null, default: `'{}'::jsonb`]
+  created_at timestamptz [not null, default: `now()`, note: 'Thời điểm hệ thống ghi nhận, lưu UTC.']
+  Note: 'EXTENSION: Một dòng gợi ý mua có thể được chuyển thành dòng PO sau duyệt và kiểm tra lại dữ liệu. Constraints: suggested_qty_base > 0; status IN (\'PROPOSED\',\'ACCEPTED\',\'REJECTED\',\'STALE\')'
+}
+
+Table ai_run {
+  id uuid [pk, not null, default: `gen_random_uuid()`, note: 'Khóa nội bộ; không dùng mã hiển thị làm khóa ngoại.']
+  requested_by uuid [not null]
+  question text [not null]
+  model_id text [not null]
+  prompt_version text [not null]
+  status text [not null]
+  answer text
+  latency_ms integer [not null, default: `0`]
+  created_at timestamptz [not null, default: `now()`, note: 'Thời điểm hệ thống ghi nhận, lưu UTC.']
+  Note: 'EXTENSION: Một câu hỏi/yêu cầu AI; lưu model, phiên bản prompt và độ trễ để đánh giá. Constraints: status IN (\'RUNNING\',\'SUCCEEDED\',\'FAILED\',\'CANCELLED\'); latency_ms >= 0'
+}
+
+Table ai_tool_call {
+  id uuid [pk, not null, default: `gen_random_uuid()`, note: 'Khóa nội bộ; không dùng mã hiển thị làm khóa ngoại.']
+  ai_run_id uuid [not null]
+  sequence_no integer [not null]
+  tool_name text [not null]
+  arguments jsonb [not null, default: `'{}'::jsonb`]
+  result_snapshot jsonb [not null, default: `'{}'::jsonb`]
+  status text [not null]
+  created_at timestamptz [not null, default: `now()`, note: 'Thời điểm hệ thống ghi nhận, lưu UTC.']
+  indexes {
+    (ai_run_id, sequence_no) [unique]
+  }
+  Note: 'EXTENSION: Evidence thực tế tool trả về; payload phải được giới hạn kích thước và loại bỏ bí mật. Constraints: sequence_no > 0'
+}
+
+Table ai_proposal {
+  id uuid [pk, not null, default: `gen_random_uuid()`, note: 'Khóa nội bộ; không dùng mã hiển thị làm khóa ngoại.']
+  ai_run_id uuid [not null]
+  kind text [not null]
+  payload jsonb [not null, default: `'{}'::jsonb`]
+  input_hash text [not null]
+  status text [not null, default: `'PROPOSED'`]
+  approved_by uuid
+  approved_at timestamptz
+  result_purchase_order_id uuid
+  created_at timestamptz [not null, default: `now()`, note: 'Thời điểm hệ thống ghi nhận, lưu UTC.']
+  Note: 'EXTENSION: AI chỉ đề xuất; application service kiểm quyền, version và dữ liệu hiện tại trước khi tạo PO nháp. Constraints: kind = \'DRAFT_PURCHASE_ORDER\'; status IN (\'PROPOSED\',\'APPLIED\',\'REJECTED\',\'STALE\')'
+}
+Ref fk_user_role_1: user_role.user_id > app_user.id
+Ref fk_user_role_2: user_role.role_id > app_role.id
+Ref fk_product_1: product.category_id > category.id
+Ref fk_product_2: product.base_uom_id > uom.id
+Ref fk_product_uom_1: product_uom.product_id > product.id
+Ref fk_product_uom_2: product_uom.uom_id > uom.id
+Ref fk_product_barcode_1: product_barcode.product_uom_id > product_uom.id
+Ref fk_supplier_product_1: supplier_product.supplier_id > partner.id
+Ref fk_supplier_product_2: supplier_product.product_id > product.id
+Ref fk_location_1: location.warehouse_id > warehouse.id
+Ref fk_location_2: location.(parent_id, warehouse_id) > location.(id, warehouse_id)
+Ref fk_lot_1: lot.product_id > product.id
+Ref fk_lot_2: lot.supplier_id > partner.id
+Ref fk_purchase_order_1: purchase_order.supplier_id > partner.id
+Ref fk_purchase_order_2: purchase_order.warehouse_id > warehouse.id
+Ref fk_purchase_order_3: purchase_order.created_by > app_user.id
+Ref fk_purchase_order_line_1: purchase_order_line.order_id > purchase_order.id
+Ref fk_purchase_order_line_2: purchase_order_line.product_id > product.id
+Ref fk_purchase_order_line_3: purchase_order_line.(product_uom_id, product_id) > product_uom.(id, product_id)
+Ref fk_sales_order_1: sales_order.customer_id > partner.id
+Ref fk_sales_order_2: sales_order.warehouse_id > warehouse.id
+Ref fk_sales_order_3: sales_order.created_by > app_user.id
+Ref fk_sales_order_line_1: sales_order_line.order_id > sales_order.id
+Ref fk_sales_order_line_2: sales_order_line.product_id > product.id
+Ref fk_sales_order_line_3: sales_order_line.(product_uom_id, product_id) > product_uom.(id, product_id)
+Ref fk_inventory_document_1: inventory_document.partner_id > partner.id
+Ref fk_inventory_document_2: inventory_document.reversal_of_id > inventory_document.id
+Ref fk_inventory_document_3: inventory_document.created_by > app_user.id
+Ref fk_inventory_document_4: inventory_document.approved_by > app_user.id
+Ref fk_inventory_document_5: inventory_document.posted_by > app_user.id
+Ref fk_inventory_document_line_1: inventory_document_line.document_id > inventory_document.id
+Ref fk_inventory_document_line_2: inventory_document_line.product_id > product.id
+Ref fk_inventory_document_line_3: inventory_document_line.from_location_id > location.id
+Ref fk_inventory_document_line_4: inventory_document_line.to_location_id > location.id
+Ref fk_inventory_document_line_5: inventory_document_line.original_line_id > inventory_document_line.id
+Ref fk_inventory_document_line_6: inventory_document_line.(lot_id, product_id) > lot.(id, product_id)
+Ref fk_inventory_document_line_7: inventory_document_line.(product_uom_id, product_id) > product_uom.(id, product_id)
+Ref fk_inventory_document_line_8: inventory_document_line.(purchase_order_line_id, product_id) > purchase_order_line.(id, product_id)
+Ref fk_inventory_document_line_9: inventory_document_line.(sales_order_line_id, product_id) > sales_order_line.(id, product_id)
+Ref fk_stock_movement_1: stock_movement.product_id > product.id
+Ref fk_stock_movement_2: stock_movement.from_location_id > location.id
+Ref fk_stock_movement_3: stock_movement.to_location_id > location.id
+Ref fk_stock_movement_4: stock_movement.reverses_movement_id > stock_movement.id
+Ref fk_stock_movement_5: stock_movement.actor_id > app_user.id
+Ref fk_stock_movement_6: stock_movement.(document_line_id, product_id, lot_id) > inventory_document_line.(id, product_id, lot_id)
+Ref fk_stock_movement_7: stock_movement.(lot_id, product_id) > lot.(id, product_id)
+Ref fk_stock_balance_1: stock_balance.product_id > product.id
+Ref fk_stock_balance_2: stock_balance.location_id > location.id
+Ref fk_stock_balance_3: stock_balance.(lot_id, product_id) > lot.(id, product_id)
+Ref fk_stock_reservation_1: stock_reservation.product_id > product.id
+Ref fk_stock_reservation_2: stock_reservation.created_by > app_user.id
+Ref fk_stock_reservation_3: stock_reservation.(sales_order_line_id, product_id) > sales_order_line.(id, product_id)
+Ref fk_stock_reservation_4: stock_reservation.(stock_balance_id, product_id) > stock_balance.(id, product_id)
+Ref fk_reservation_event_1: reservation_event.reservation_id > stock_reservation.id
+Ref fk_reservation_event_2: reservation_event.document_line_id > inventory_document_line.id
+Ref fk_reservation_event_3: reservation_event.actor_id > app_user.id
+Ref fk_stocktake_1: stocktake.location_id > location.id
+Ref fk_stocktake_2: stocktake.adjustment_document_id > inventory_document.id
+Ref fk_stocktake_3: stocktake.created_by > app_user.id
+Ref fk_stocktake_4: stocktake.approved_by > app_user.id
+Ref fk_stocktake_line_1: stocktake_line.stocktake_id > stocktake.id
+Ref fk_stocktake_line_2: stocktake_line.product_id > product.id
+Ref fk_stocktake_line_3: stocktake_line.counted_by > app_user.id
+Ref fk_stocktake_line_4: stocktake_line.(lot_id, product_id) > lot.(id, product_id)
+Ref fk_audit_event_1: audit_event.actor_id > app_user.id
+Ref fk_reorder_policy_1: reorder_policy.product_id > product.id
+Ref fk_reorder_policy_2: reorder_policy.warehouse_id > warehouse.id
+Ref fk_map_node_1: map_node.warehouse_id > warehouse.id
+Ref fk_map_node_2: map_node.location_id > location.id
+Ref fk_map_edge_1: map_edge.warehouse_id > warehouse.id
+Ref fk_map_edge_2: map_edge.(from_node_id, warehouse_id) > map_node.(id, warehouse_id)
+Ref fk_map_edge_3: map_edge.(to_node_id, warehouse_id) > map_node.(id, warehouse_id)
+Ref fk_pick_run_1: pick_run.sales_order_id > sales_order.id
+Ref fk_pick_run_2: pick_run.warehouse_id > warehouse.id
+Ref fk_pick_run_3: pick_run.created_by > app_user.id
+Ref fk_pick_stop_1: pick_stop.pick_run_id > pick_run.id
+Ref fk_pick_stop_2: pick_stop.reservation_id > stock_reservation.id
+Ref fk_pick_stop_3: pick_stop.node_id > map_node.id
+Ref fk_analysis_run_1: analysis_run.created_by > app_user.id
+Ref fk_inventory_alert_1: inventory_alert.analysis_run_id > analysis_run.id
+Ref fk_inventory_alert_2: inventory_alert.product_id > product.id
+Ref fk_inventory_alert_3: inventory_alert.warehouse_id > warehouse.id
+Ref fk_inventory_alert_4: inventory_alert.lot_id > lot.id
+Ref fk_inventory_alert_5: inventory_alert.acknowledged_by > app_user.id
+Ref fk_replenishment_suggestion_1: replenishment_suggestion.analysis_run_id > analysis_run.id
+Ref fk_replenishment_suggestion_2: replenishment_suggestion.product_id > product.id
+Ref fk_replenishment_suggestion_3: replenishment_suggestion.warehouse_id > warehouse.id
+Ref fk_replenishment_suggestion_4: replenishment_suggestion.supplier_id > partner.id
+Ref fk_replenishment_suggestion_5: replenishment_suggestion.result_po_line_id > purchase_order_line.id
+Ref fk_ai_run_1: ai_run.requested_by > app_user.id
+Ref fk_ai_tool_call_1: ai_tool_call.ai_run_id > ai_run.id
+Ref fk_ai_proposal_1: ai_proposal.ai_run_id > ai_run.id
+Ref fk_ai_proposal_2: ai_proposal.approved_by > app_user.id
+Ref fk_ai_proposal_3: ai_proposal.result_purchase_order_id > purchase_order.id
+
+TableGroup g01_identity {
+  app_role
+  app_user
+  user_role
+}
+
+TableGroup g02_catalog {
+  category
+  uom
+  product
+  product_uom
+  product_barcode
+  partner
+  supplier_product
+}
+
+TableGroup g03_location {
+  warehouse
+  location
+}
+
+TableGroup g04_inventory {
+  lot
+  inventory_document
+  inventory_document_line
+  stock_movement
+  stock_balance
+  stock_reservation
+  reservation_event
+}
+
+TableGroup g05_orders {
+  purchase_order
+  purchase_order_line
+  sales_order
+  sales_order_line
+}
+
+TableGroup g06_control {
+  stocktake
+  stocktake_line
+  audit_event
+}
+
+TableGroup g07_intelligence {
+  reorder_policy
+  analysis_run
+  inventory_alert
+  replenishment_suggestion
+}
+
+TableGroup g08_map {
+  map_node
+  map_edge
+  pick_run
+  pick_stop
+}
+
+TableGroup g09_ai {
+  ai_run
+  ai_tool_call
+  ai_proposal
+}
