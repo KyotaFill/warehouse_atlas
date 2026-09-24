@@ -1,6 +1,7 @@
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Any, Callable
+from datetime import UTC, datetime
+from typing import Any
 
 from warehouse_atlas.application.ports.llm_port import ToolDefinition
 from warehouse_atlas.common.exceptions import UnauthorizedError
@@ -9,6 +10,7 @@ from warehouse_atlas.common.exceptions import UnauthorizedError
 @dataclass(frozen=True, slots=True)
 class ToolEvidence:
     """Bằng chứng dữ liệu thực tế gắn kèm câu trả lời của trợ lý."""
+
     tool_name: str
     arguments: dict[str, Any]
     result: Any
@@ -38,10 +40,12 @@ class ToolGateway:
 
     def execute(self, tool_name: str, arguments: dict[str, Any]) -> ToolEvidence:
         if tool_name not in self._tools:
-            raise UnauthorizedError(f"Công cụ {tool_name} không nằm trong danh sách được phép", role="AI_AGENT")
+            raise UnauthorizedError(
+                f"Công cụ {tool_name} không nằm trong danh sách được phép", role="AI_AGENT"
+            )
 
         _, handler = self._tools[tool_name]
-        as_of = datetime.now(timezone.utc)
+        as_of = datetime.now(UTC)
         result_data = handler(**arguments)
 
         return ToolEvidence(

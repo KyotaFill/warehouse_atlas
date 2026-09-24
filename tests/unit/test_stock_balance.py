@@ -1,5 +1,6 @@
 import uuid
 from decimal import Decimal
+
 import pytest
 
 from warehouse_atlas.common.constants import Condition

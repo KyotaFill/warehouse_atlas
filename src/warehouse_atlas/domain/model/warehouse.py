@@ -18,6 +18,7 @@ class Location:
     Vị trí vật lý trong kho (Zone, Aisle, Rack, Shelf, Bin).
     Tổ chức theo cây phân cấp (parent_id) nhưng cùng thuộc một kho (warehouse_id).
     """
+
     id: UUID
     warehouse_id: UUID
     code: str

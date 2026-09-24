@@ -10,6 +10,7 @@ from warehouse_atlas.common.types import BucketKey
 @dataclass(frozen=True, slots=True)
 class AllocationCandidate:
     """Ứng viên lô/vị trí đã vượt qua bước kiểm tra LotEligibility."""
+
     bucket_id: UUID
     bucket_key: BucketKey
     available_qty: Decimal
@@ -39,8 +40,7 @@ class AllocationPolicy(Protocol):
 
     def allocate(
         self, candidates: list[AllocationCandidate], requested_qty: Decimal
-    ) -> AllocationPlan:
-        ...
+    ) -> AllocationPlan: ...
 
 
 class FefoPolicy:

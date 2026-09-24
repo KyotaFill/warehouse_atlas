@@ -53,7 +53,9 @@ class LotEligibility:
             reasons.append("Lô đang bị phong tỏa/khóa")
 
         if context.disallow_quarantine and condition != context.required_condition:
-            reasons.append(f"Tình trạng {condition.value} khác yêu cầu {context.required_condition.value}")
+            reasons.append(
+                f"Tình trạng {condition.value} khác yêu cầu {context.required_condition.value}"
+            )
 
         if location_id in context.frozen_location_ids:
             reasons.append("Vị trí đang bị đóng băng do kiểm kê")

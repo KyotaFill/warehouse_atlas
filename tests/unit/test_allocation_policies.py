@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 from warehouse_atlas.common.constants import Condition
@@ -21,7 +21,7 @@ def test_fefo_prioritizes_earlier_expiry():
         bucket_key=BucketKey(p_id, loc_id, uuid.uuid4(), Condition.GOOD),
         available_qty=Decimal("6"),
         expires_on=date(2026, 12, 31),
-        received_at=datetime(2026, 9, 1, tzinfo=timezone.utc),
+        received_at=datetime(2026, 9, 1, tzinfo=UTC),
         lot_code="LOT-A",
     )
 
@@ -31,7 +31,7 @@ def test_fefo_prioritizes_earlier_expiry():
         bucket_key=BucketKey(p_id, loc_id, uuid.uuid4(), Condition.GOOD),
         available_qty=Decimal("8"),
         expires_on=date(2026, 10, 31),
-        received_at=datetime(2026, 9, 10, tzinfo=timezone.utc),
+        received_at=datetime(2026, 9, 10, tzinfo=UTC),
         lot_code="LOT-B",
     )
 

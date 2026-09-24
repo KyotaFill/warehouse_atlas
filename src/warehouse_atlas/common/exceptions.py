@@ -20,12 +20,17 @@ class AppError(Exception):
 
 class DomainError(AppError):
     """Base domain business invariant violation."""
-    def __init__(self, message: str, code: str = "DOMAIN_ERROR", context: dict[str, Any] | None = None) -> None:
+
+    def __init__(
+        self, message: str, code: str = "DOMAIN_ERROR", context: dict[str, Any] | None = None
+    ) -> None:
         super().__init__(message, code=code, context=context, retryable=False)
 
 
 class ValidationError(AppError):
-    def __init__(self, message: str, field: str | None = None, context: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self, message: str, field: str | None = None, context: dict[str, Any] | None = None
+    ) -> None:
         ctx = context or {}
         if field:
             ctx["field"] = field
@@ -34,12 +39,19 @@ class ValidationError(AppError):
 
 class ConcurrencyError(AppError):
     """Optimistic or pessimistic lock failure."""
-    def __init__(self, message: str = "Dữ liệu đã bị thay đổi bởi thao tác khác", context: dict[str, Any] | None = None) -> None:
+
+    def __init__(
+        self,
+        message: str = "Dữ liệu đã bị thay đổi bởi thao tác khác",
+        context: dict[str, Any] | None = None,
+    ) -> None:
         super().__init__(message, code="CONCURRENCY_CONFLICT", context=context, retryable=True)
 
 
 class InsufficientStockError(DomainError):
-    def __init__(self, message: str = "Không đủ số lượng khả dụng", context: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self, message: str = "Không đủ số lượng khả dụng", context: dict[str, Any] | None = None
+    ) -> None:
         super().__init__(message, code="INSUFFICIENT_STOCK", context=context)
 
 

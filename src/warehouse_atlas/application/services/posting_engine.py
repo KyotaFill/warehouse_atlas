@@ -1,10 +1,13 @@
-from datetime import datetime, timezone
-from decimal import Decimal
+from datetime import UTC, datetime
+from uuid import uuid4
 
 from warehouse_atlas.application.dtos.inventory_dto import PostDocumentCommand
 from warehouse_atlas.application.ports.unit_of_work import UnitOfWork
-from warehouse_atlas.common.constants import Condition, DocumentStatus
-from warehouse_atlas.common.exceptions import ConcurrencyError, InsufficientStockError, ValidationError
+from warehouse_atlas.common.constants import DocumentStatus
+from warehouse_atlas.common.exceptions import (
+    ConcurrencyError,
+    ValidationError,
+)
 from warehouse_atlas.common.types import BucketDelta, BucketKey
 from warehouse_atlas.domain.model.document import InventoryDocument
 from warehouse_atlas.domain.model.movement import StockMovement
@@ -28,12 +31,14 @@ class PostingEngine:
         command: PostDocumentCommand,
     ) -> None:
         if document.status != DocumentStatus.APPROVED:
-            raise ValidationError(f"Chứng từ phải ở trạng thái APPROVED để ghi sổ, hiện tại: {document.status.value}")
+            raise ValidationError(
+                f"Chứng từ phải ở trạng thái APPROVED để ghi sổ, hiện tại: {document.status.value}"
+            )
 
         if document.version != command.expected_version:
             raise ConcurrencyError("Chứng từ đã bị thay đổi phiên bản trước khi ghi sổ")
 
-        recorded_at = datetime.now(timezone.utc)
+        recorded_at = datetime.now(UTC)
         deltas: dict[BucketKey, BucketDelta] = {}
 
         for line in document.lines:
@@ -69,11 +74,12 @@ class PostingEngine:
 
             # Tạo bản ghi sổ kho (Movement)
             movement = StockMovement(
-                id=command.document_id,  # Trong thực tế sinh uuid riêng cho movement
+                id=uuid4(),
                 document_line_id=line.id,
                 product_id=line.product_id,
                 lot_id=line.lot_id,
                 quantity=line.quantity_base,
+                actor_id=command.actor_id,
                 recorded_at=recorded_at,
                 from_location_id=line.from_location_id,
                 to_location_id=line.to_location_id,
@@ -94,4 +100,10 @@ class PostingEngine:
 
         # Đánh dấu chứng từ đã ghi sổ
         document.mark_posted(recorded_at)
-        uow.documents.mark_posted(document.id, recorded_at)
+        uow.documents.mark_posted(
+            document_id=document.id,
+            posted_by=command.actor_id,
+            posted_at=recorded_at,
+            idempotency_key=command.idempotency_key,
+            payload_hash=command.canonical_payload_hash,
+        )

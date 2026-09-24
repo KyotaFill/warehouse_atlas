@@ -1,9 +1,9 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, Self
 
-from warehouse_atlas.application.dtos.inventory_dto import DocumentLineInputDTO, PostDocumentCommand
+from warehouse_atlas.application.dtos.inventory_dto import PostDocumentCommand
 from warehouse_atlas.application.services.posting_engine import PostingEngine
 from warehouse_atlas.common.constants import Condition, DocumentKind, DocumentStatus
 from warehouse_atlas.common.types import BucketDelta, BucketKey
@@ -30,8 +30,17 @@ class InMemoryDocumentRepo:
     def __init__(self):
         self.posted_records = []
 
-    def mark_posted(self, document_id: uuid.UUID, posted_at: datetime) -> None:
-        self.posted_records.append((document_id, posted_at))
+    def mark_posted(
+        self,
+        document_id: uuid.UUID,
+        posted_by: uuid.UUID,
+        posted_at: datetime,
+        idempotency_key: uuid.UUID,
+        payload_hash: str,
+    ) -> None:
+        self.posted_records.append(
+            (document_id, posted_by, posted_at, idempotency_key, payload_hash)
+        )
 
 
 class MockUoW:
@@ -61,6 +70,7 @@ def test_posting_engine_receipt():
     lot_id = uuid.uuid4()
     uom_id = uuid.uuid4()
     actor_id = uuid.uuid4()
+    idem_key = uuid.uuid4()
 
     line = InventoryDocumentLine(
         id=uuid.uuid4(),
@@ -84,7 +94,7 @@ def test_posting_engine_receipt():
         kind=DocumentKind.RECEIPT,
         status=DocumentStatus.APPROVED,
         created_by=actor_id,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
         version=1,
         lines=[line],
     )
@@ -92,8 +102,9 @@ def test_posting_engine_receipt():
     cmd = PostDocumentCommand(
         document_id=doc_id,
         expected_version=1,
-        idempotency_key="key-123",
+        idempotency_key=idem_key,
         actor_id=actor_id,
+        canonical_payload_hash="test-hash",
         lines=(),
     )
 

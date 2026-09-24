@@ -23,6 +23,7 @@ class Stocktake:
     Phiên kiểm kê mù tại một vị trí/kho.
     Khi COUNTING, location bị freeze để ngăn biến động trong lúc đếm.
     """
+
     id: UUID
     warehouse_id: UUID
     location_id: UUID

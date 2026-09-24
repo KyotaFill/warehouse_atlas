@@ -17,7 +17,9 @@ class BackgroundTaskRunner:
     """
 
     def __init__(self, check_interval_ms: int = 50) -> None:
-        self._queue: queue.Queue[tuple[TaskResult[Any], Callable[[TaskResult[Any]], None]]] = queue.Queue()
+        self._queue: queue.Queue[tuple[TaskResult[Any], Callable[[TaskResult[Any]], None]]] = (
+            queue.Queue()
+        )
         self._check_interval_ms = check_interval_ms
         self._active_tokens: set[str] = set()
 
@@ -66,6 +68,7 @@ class BackgroundTaskRunner:
 
     def attach_tk_root(self, root: Any) -> None:
         """Gắn vòng lặp polling vào Tkinter root bằng after()."""
+
         def poll() -> None:
             while not self._queue.empty():
                 try:

@@ -17,6 +17,7 @@ class UnitOfWork(Protocol):
     Hợp đồng UnitOfWork: Đảm bảo nguyên tử tính (Atomicity) cho một use case.
     Một use case = Một UnitOfWork = Một database transaction.
     """
+
     inventory: InventoryRepository
     catalog: CatalogRepository
     warehouse: WarehouseRepository
@@ -25,19 +26,15 @@ class UnitOfWork(Protocol):
     stocktake: StocktakeRepository
     audit: AuditRepository
 
-    def __enter__(self) -> Self:
-        ...
+    def __enter__(self) -> Self: ...
 
     def __exit__(
         self,
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> None:
-        ...
+    ) -> None: ...
 
-    def commit(self) -> None:
-        ...
+    def commit(self) -> None: ...
 
-    def rollback(self) -> None:
-        ...
+    def rollback(self) -> None: ...

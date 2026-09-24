@@ -64,6 +64,7 @@ class LayoutTokens:
 
 class ThemeTokens:
     """Design System Token tĩnh cho toàn bộ giao diện Tkinter của Warehouse Atlas."""
+
     COLOR = ColorTokens()
     SPACE = SpacingTokens()
     FONT = FontTokens()

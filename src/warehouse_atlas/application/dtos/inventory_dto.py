@@ -1,9 +1,8 @@
 from dataclasses import dataclass
-from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from warehouse_atlas.common.constants import Condition, DocumentKind, DocumentStatus
+from warehouse_atlas.common.constants import Condition
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,11 +25,13 @@ class DocumentLineInputDTO:
 @dataclass(frozen=True, slots=True)
 class PostDocumentCommand:
     """Hợp đồng gửi lệnh ghi sổ chứng từ (Idempotent Posting Command)."""
+
     document_id: UUID
     expected_version: int
-    idempotency_key: str
+    idempotency_key: UUID
     actor_id: UUID
-    lines: tuple[DocumentLineInputDTO, ...]
+    canonical_payload_hash: str = "CANONICAL_HASH_PLACEHOLDER"
+    lines: tuple[DocumentLineInputDTO, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

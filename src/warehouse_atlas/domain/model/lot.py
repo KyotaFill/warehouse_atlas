@@ -10,6 +10,7 @@ class Lot:
     Lô hàng nội bộ (Internal Lot).
     Mỗi lần nhận hàng sinh ra một internal lot để lưu vết giá nhập, ngày nhận và hạn sử dụng.
     """
+
     id: UUID
     product_id: UUID
     internal_lot_code: str

@@ -29,5 +29,4 @@ class LLMPort(Protocol):
         self,
         messages: list[dict[str, str]],
         tools: list[ToolDefinition] | None = None,
-    ) -> LLMResponse:
-        ...
+    ) -> LLMResponse: ...

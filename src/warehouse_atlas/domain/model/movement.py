@@ -13,13 +13,15 @@ class StockMovement:
     Mỗi dòng chứng từ POSTED sinh đúng một bản ghi StockMovement.
     Không bao giờ UPDATE hoặc DELETE StockMovement.
     """
+
     id: UUID
     document_line_id: UUID
     product_id: UUID
     lot_id: UUID
     quantity: Decimal  # Luôn dương
+    actor_id: UUID
     recorded_at: datetime
-    from_location_id: UUID | None
-    to_location_id: UUID | None
-    from_condition: Condition | None
-    to_condition: Condition | None
+    from_location_id: UUID | None = None
+    to_location_id: UUID | None = None
+    from_condition: Condition | None = None
+    to_condition: Condition | None = None

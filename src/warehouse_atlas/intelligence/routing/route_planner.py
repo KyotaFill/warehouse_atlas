@@ -1,6 +1,5 @@
-from dataclasses import dataclass
 import math
-from typing import Any
+from dataclasses import dataclass
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,8 +89,8 @@ class RoutePlanner:
                         # Thử đảo ngược đoạn từ i đến j
                         new_stops = (
                             proposed_stops[:i]
-                            + list(reversed(proposed_stops[i:j + 1]))
-                            + proposed_stops[j + 1:]
+                            + list(reversed(proposed_stops[i : j + 1]))
+                            + proposed_stops[j + 1 :]
                         )
                         new_dist = cls.calculate_tour_distance(start_coord, new_stops)
                         curr_dist = cls.calculate_tour_distance(start_coord, proposed_stops)
@@ -105,7 +104,9 @@ class RoutePlanner:
         proposed_distance = cls.calculate_tour_distance(start_coord, proposed_stops)
 
         # So sánh với baseline: Nếu heuristic xấu hơn, giữ baseline
-        if proposed_distance > baseline_distance or math.isclose(proposed_distance, baseline_distance):
+        if proposed_distance > baseline_distance or math.isclose(
+            proposed_distance, baseline_distance
+        ):
             return RoutePlanResult(
                 stops_in_order=tuple(baseline_stops),
                 total_distance_meters=baseline_distance,

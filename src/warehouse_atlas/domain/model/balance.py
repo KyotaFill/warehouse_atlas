@@ -12,6 +12,7 @@ class StockBalance:
     Số dư tồn kho tại một Bucket (4 chiều).
     Sổ movement là nguồn gốc, StockBalance là snapshot/projection giao dịch để đọc và khóa nhanh.
     """
+
     id: UUID
     bucket_key: BucketKey
     on_hand: Decimal

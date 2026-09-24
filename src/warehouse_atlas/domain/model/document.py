@@ -32,6 +32,7 @@ class InventoryDocument:
     Chứng từ kho (Thực nhập, thực xuất, điều chuyển, kiểm kê điều chỉnh...).
     Chỉ có 1 entity InventoryDocument với 9 DocumentKind khác nhau.
     """
+
     id: UUID
     warehouse_id: UUID
     code: str

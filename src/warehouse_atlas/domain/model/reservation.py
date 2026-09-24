@@ -14,6 +14,7 @@ class StockReservation:
     Cam kết giữ hàng cho một dòng đơn bán (SO Line).
     Ngăn chặn bán/xuất trùng lặp khi nhiều đơn cùng cần một lô hàng.
     """
+
     id: UUID
     so_line_id: UUID
     bucket_key: BucketKey
@@ -51,6 +52,7 @@ class StockReservation:
 @dataclass(frozen=True, slots=True)
 class ReservationEvent:
     """Nhật ký biến động lượng giữ hàng (ALLOCATE, CONSUME, RELEASE, EXPIRE)."""
+
     id: UUID
     reservation_id: UUID
     event_type: str  # ALLOCATE, CONSUME, RELEASE, EXPIRE

@@ -41,6 +41,7 @@ class Product:
     Lưu ý kiến trúc: Product là danh mục thông tin, KHÔNG chứa thuộc tính quantity hay stock.
     Số lượng thực tế nằm ở StockBalance theo 4 chiều: (product_id, location_id, lot_id, condition).
     """
+
     id: UUID
     sku: str
     name: str
