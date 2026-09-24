@@ -11,6 +11,6 @@ class AuditEvent:
     entity_id: UUID
     action: str
     actor_id: UUID
-    occurred_at: datetime
+    recorded_at: datetime
     payload_before: dict[str, Any] | None = None
     payload_after: dict[str, Any] | None = None
