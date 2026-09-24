@@ -1,12 +1,9 @@
 # Hệ Thống Quản Lý Kho Thông Minh 
 
 
-
----
-
 ## 1. Thông Điệp & Giá Trị Cốt Lõi
 
-> *“Hệ thống quản lý kho có khả năng truy vết, ngăn cấp phát trùng, lập kế hoạch lấy hàng và giải thích đề xuất bằng dữ liệu thực tế.”*
+“Hệ thống quản lý kho có khả năng truy vết, ngăn cấp phát trùng, lập kế hoạch lấy hàng và giải thích đề xuất bằng dữ liệu thực tế.”
 
 - **Nhận đúng & Biết hàng ở đâu:** Độ hạt tồn kho 4 chiều hạt nhân `(product_id, location_id, lot_id, condition)`. Phân biệt rõ giữa Danh mục hàng (Product) và Số dư thực tế (StockBalance).
 - **Giữ đúng hàng cho đơn:** Cơ chế Soft Reservation ngăn race condition và over-allocation khi nhiều đơn cùng tranh chấp một lô hàng.
