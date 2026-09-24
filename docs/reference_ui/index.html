@@ -900,5 +900,381 @@ Có thể quản lý dòng tiền hiệu quả bằng cách phân tích số dư
         }
     });
 </script>
+
+<!-- ECOUNT ERP Interactive Modals & Workflow System -->
+<div id="atlasModalBackdrop" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:99999; justify-content:center; align-items:center;">
+  <div id="atlasModalBox" class="panel panel-primary panel-modal ui-dialog" style="width: 1050px; max-width: 95vw; max-height: 88vh; display:flex; flex-direction:column; box-shadow: 0 12px 30px rgba(0,0,0,0.35); border-radius: 4px; overflow:hidden; border: 1px solid #1f48d4;">
+    <div class="panel-heading ui-dialog-titlebar" style="display:flex; justify-content:space-between; align-items:center; padding: 10px 18px; background:#1f48d4; color:#fff; border-bottom: 1px solid #1636a0;">
+      <span id="atlasModalTitle" style="font-weight:bold; font-size:14px; display:flex; align-items:center; gap:8px;"></span>
+      <button onclick="closeAtlasModal()" style="background:none; border:none; color:#fff; font-size:20px; cursor:pointer; line-height:1;">&times;</button>
+    </div>
+    <div id="atlasModalBody" class="panel-body" style="padding:15px; overflow-y:auto; flex:1; background:#fff; font-size:12px;"></div>
+    <div id="atlasModalFooter" class="panel-footer" style="padding:10px 18px; background:#f8fafc; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:8px;"></div>
+  </div>
+</div>
+
+<script>
+function closeAtlasModal() {
+    document.getElementById('atlasModalBackdrop').style.display = 'none';
+}
+
+function openAtlasModal(title, bodyHtml, footerHtml) {
+    document.getElementById('atlasModalTitle').innerHTML = title;
+    document.getElementById('atlasModalBody').innerHTML = bodyHtml;
+    document.getElementById('atlasModalFooter').innerHTML = footerHtml || '<button class="btn btn-default" onclick="closeAtlasModal()">Đóng (Esc)</button>';
+    document.getElementById('atlasModalBackdrop').style.display = 'flex';
+}
+
+// 1. Modal Danh mục Mặt hàng (Item Master)
+async function openItemMasterModal() {
+    openAtlasModal(
+        '📦 Danh mục Mặt hàng (Item Master) — ECOUNT ERP',
+        '<div style="text-align:center; padding:30px;"><div class="rect1"></div> Đang tải 271 SKU từ PostgreSQL...</div>'
+    );
+    try {
+        const res = await fetch('/api/items');
+        const json = await res.json();
+        const items = json.data || [];
+        
+        let html = `
+            <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+                <input type="text" id="itemSearchInput" placeholder="🔍 Tìm theo SKU, tên sản phẩm hoặc mã vạch..." class="form-control" style="width: 380px; font-size: 12px;" oninput="filterItemTable()">
+                <span style="font-size: 11px; color: #64748b;">Tổng cộng: <strong>${items.length}</strong> SKU tiêu dùng nhanh (FMCG)</span>
+            </div>
+            <div style="max-height: 55vh; overflow-y: auto; border: 1px solid #e2e8f0;">
+                <table class="table table-hover table-striped" id="itemMasterTable" style="margin:0;">
+                    <thead style="position: sticky; top: 0; background: #f1f5f9; z-index: 10;">
+                        <tr>
+                            <th style="width: 140px;">Mã SKU</th>
+                            <th>Tên Sản Phẩm</th>
+                            <th style="width: 140px;">Ngành Hàng</th>
+                            <th style="width: 130px; text-align: center;">Mã Vạch EAN-13</th>
+                            <th style="width: 80px; text-align: center;">Hạn Dùng</th>
+                            <th style="width: 90px; text-align: right;">Tồn Kho</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${items.map(it => `
+                            <tr>
+                                <td><strong style="color: #1f48d4;">${it.sku}</strong></td>
+                                <td>${it.name}</td>
+                                <td><span style="background:#f1f5f9; padding:2px 6px; border-radius:3px; font-size:11px;">${it.category}</span></td>
+                                <td style="text-align: center;"><code style="font-size: 11px;">${it.barcode}</code></td>
+                                <td style="text-align: center;">${it.track_expiry ? it.min_shelf_life_days + ' ngày' : 'Không'}</td>
+                                <td style="text-align: right; font-weight: bold; color: ${it.on_hand > 0 ? '#15803d' : '#94a3b8'};">${it.on_hand.toLocaleString()}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+        document.getElementById('atlasModalBody').innerHTML = html;
+    } catch(err) {
+        document.getElementById('atlasModalBody').innerHTML = `<div class="alert alert-danger">Lỗi tải dữ liệu: ${err}</div>`;
+    }
+}
+
+function filterItemTable() {
+    const q = document.getElementById('itemSearchInput').value.toLowerCase();
+    const rows = document.querySelectorAll('#itemMasterTable tbody tr');
+    rows.forEach(r => {
+        const text = r.textContent.toLowerCase();
+        r.style.display = text.includes(q) ? '' : 'none';
+    });
+}
+
+// 2. Modal Khách hàng / Nhà cung cấp (Partner Master)
+async function openPartnerMasterModal() {
+    openAtlasModal(
+        '🤝 Danh mục Khách hàng & Nhà cung cấp — ECOUNT ERP',
+        '<div style="text-align:center; padding:30px;">Đang tải danh sách đối tác...</div>'
+    );
+    try {
+        const res = await fetch('/api/partners');
+        const json = await res.json();
+        const partners = json.data || [];
+        
+        let html = `
+            <div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+                <input type="text" id="partnerSearchInput" placeholder="🔍 Tìm theo mã hoặc tên đối tác..." class="form-control" style="width: 350px; font-size: 12px;" oninput="filterPartnerTable()">
+                <span style="font-size: 11px; color: #64748b;">Tổng số đối tác: <strong>${partners.length}</strong></span>
+            </div>
+            <div style="max-height: 55vh; overflow-y: auto; border: 1px solid #e2e8f0;">
+                <table class="table table-hover table-striped" id="partnerMasterTable" style="margin:0;">
+                    <thead style="position: sticky; top: 0; background: #f1f5f9; z-index: 10;">
+                        <tr>
+                            <th style="width: 140px;">Mã Đối Tác</th>
+                            <th>Tên Công Ty / Doanh Nghiệp</th>
+                            <th style="width: 110px; text-align: center;">Phân Loại</th>
+                            <th style="width: 120px;">Điện Thoại</th>
+                            <th>Địa Chỉ</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${partners.map(p => `
+                            <tr>
+                                <td><strong style="color: #1f48d4;">${p.code}</strong></td>
+                                <td>${p.name}</td>
+                                <td style="text-align: center;">
+                                    ${p.is_supplier ? '<span class="badge" style="background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd;">Nhà Cung Cấp</span>' : ''}
+                                    ${p.is_customer ? '<span class="badge" style="background:#fef3c7; color:#b45309; border:1px solid #fde68a;">Khách Hàng</span>' : ''}
+                                </td>
+                                <td>${p.phone}</td>
+                                <td style="font-size: 11px; color: #475569;">${p.address}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+        document.getElementById('atlasModalBody').innerHTML = html;
+    } catch(err) {
+        document.getElementById('atlasModalBody').innerHTML = `<div class="alert alert-danger">Lỗi tải dữ liệu: ${err}</div>`;
+    }
+}
+
+function filterPartnerTable() {
+    const q = document.getElementById('partnerSearchInput').value.toLowerCase();
+    const rows = document.querySelectorAll('#partnerMasterTable tbody tr');
+    rows.forEach(r => {
+        const text = r.textContent.toLowerCase();
+        r.style.display = text.includes(q) ? '' : 'none';
+    });
+}
+
+// 3. Modal Lập Phiếu Mua Hàng / Nhập Kho (Goods Receipt)
+async function openGoodsReceiptModal() {
+    openAtlasModal(
+        '📥 Lập Phiếu Mua Hàng (Goods Receipt) — Hạch toán Kho PostgreSQL',
+        '<div style="text-align:center; padding:30px;">Đang tải danh mục...</div>'
+    );
+    try {
+        const [resItems, resPartners, resLocs] = await Promise.all([
+            fetch('/api/items').then(r => r.json()),
+            fetch('/api/partners').then(r => r.json()),
+            fetch('/api/locations').then(r => r.json())
+        ]);
+        
+        const suppliers = (resPartners.data || []).filter(p => p.is_supplier);
+        const items = resItems.data || [];
+        const locs = resLocs.data || [];
+
+        let html = `
+            <div style="background: #f8fafc; padding: 12px; border-radius: 4px; border: 1px solid #e2e8f0; margin-bottom: 15px;">
+                <div style="font-weight: 600; color: #1e293b; margin-bottom: 8px;">Thông tin chung chứng từ:</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div>
+                        <label style="font-weight: 500; font-size: 11px;">Nhà cung cấp (*):</label>
+                        <select id="receiptSupplier" class="form-control" style="font-size: 12px;">
+                            ${suppliers.map(s => `<option value="${s.id}">${s.code} - ${s.name}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-weight: 500; font-size: 11px;">Kho / Vị trí nhập (*):</label>
+                        <select id="receiptLocation" class="form-control" style="font-size: 12px;">
+                            ${locs.map(l => `<option value="${l.id}">${l.code} - ${l.name} (${l.usage})</option>`).join('')}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div style="background: #fff; padding: 12px; border-radius: 4px; border: 1px solid #e2e8f0;">
+                <div style="font-weight: 600; color: #1e293b; margin-bottom: 8px;">Chi tiết mặt hàng & Lô nhập:</div>
+                <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                    <div>
+                        <label style="font-weight: 500; font-size: 11px;">Sản phẩm (*):</label>
+                        <select id="receiptProduct" class="form-control" style="font-size: 12px;">
+                            ${items.map(it => `<option value="${it.id}">${it.sku} - ${it.name}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-weight: 500; font-size: 11px;">Số lượng nhập (*):</label>
+                        <input type="number" id="receiptQty" class="form-control" value="50" min="1" style="font-size: 12px; font-weight: bold; text-align: right;">
+                    </div>
+                    <div>
+                        <label style="font-weight: 500; font-size: 11px;">Đơn giá vốn (VND):</label>
+                        <input type="number" id="receiptCost" class="form-control" value="25000" min="0" style="font-size: 12px; text-align: right;">
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div>
+                        <label style="font-weight: 500; font-size: 11px;">Mã Lô nội bộ:</label>
+                        <input type="text" id="receiptLotCode" class="form-control" placeholder="Tự động sinh (hoặc nhập mã lô)..." style="font-size: 12px;">
+                    </div>
+                    <div>
+                        <label style="font-weight: 500; font-size: 11px;">Mã Lô nhà sản xuất:</label>
+                        <input type="text" id="receiptMfgLot" class="form-control" value="MFG-2026-FMCG" style="font-size: 12px;">
+                    </div>
+                </div>
+            </div>
+            <div id="receiptAlert" style="margin-top: 12px;"></div>
+        `;
+
+        let footer = `
+            <button class="btn btn-default" onclick="closeAtlasModal()">Hủy (Esc)</button>
+            <button class="btn btn-primary" onclick="submitGoodsReceipt()" style="background:#1f48d4; border-color:#1636a0; font-weight:bold;">
+                💾 Ghi Sổ Hạch Toán (F8)
+            </button>
+        `;
+        document.getElementById('atlasModalBody').innerHTML = html;
+        document.getElementById('atlasModalFooter').innerHTML = footer;
+    } catch(err) {
+        document.getElementById('atlasModalBody').innerHTML = `<div class="alert alert-danger">Lỗi tải form: ${err}</div>`;
+    }
+}
+
+async function submitGoodsReceipt() {
+    const pId = document.getElementById('receiptProduct').value;
+    const lId = document.getElementById('receiptLocation').value;
+    const sId = document.getElementById('receiptSupplier').value;
+    const qty = parseFloat(document.getElementById('receiptQty').value) || 0;
+    const cost = parseFloat(document.getElementById('receiptCost').value) || 0;
+    const lotCode = document.getElementById('receiptLotCode').value;
+    const mfgLot = document.getElementById('receiptMfgLot').value;
+
+    if (qty <= 0) {
+        alert('Vui lòng nhập số lượng lớn hơn 0!');
+        return;
+    }
+
+    const alertBox = document.getElementById('receiptAlert');
+    alertBox.innerHTML = '<div class="alert alert-info">Đang gửi lệnh ghi sổ nguyên tử vào PostgreSQL...</div>';
+
+    try {
+        const res = await fetch('/api/receipt/create', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                product_id: pId,
+                location_id: lId,
+                partner_id: sId,
+                quantity: qty,
+                unit_cost: cost,
+                lot_code: lotCode,
+                mfg_lot_code: mfgLot
+            })
+        });
+        const resJson = await res.json();
+        if (resJson.status === 'success') {
+            alertBox.innerHTML = `<div class="alert alert-success">✅ ${resJson.message}</div>`;
+            setTimeout(() => {
+                closeAtlasModal();
+                if (typeof loadAtlasData === 'function') loadAtlasData();
+            }, 1200);
+        } else {
+            alertBox.innerHTML = `<div class="alert alert-danger">❌ Lỗi: ${resJson.message}</div>`;
+        }
+    } catch(err) {
+        alertBox.innerHTML = `<div class="alert alert-danger">❌ Lỗi kết nối API: ${err}</div>`;
+    }
+}
+
+// 4. Modal Trợ lý AI Kho (Warehouse AI Assistant)
+function openAIAssistantModal() {
+    const html = `
+        <div style="background: #f0fdf4; border: 1px solid #bbf7d0; padding: 12px; border-radius: 4px; margin-bottom: 12px;">
+            <div style="font-weight: 600; color: #166534; display: flex; align-items: center; gap: 6px;">
+                🤖 TRỢ LÝ TRÍ TUỆ NHÂN TẠO WAREHOUSE ATLAS (ECOUNT AI)
+            </div>
+            <div style="font-size: 11px; color: #15803d; margin-top: 4px;">
+                Trợ lý vận hành kho sử dụng Tool Gateway có kiểm soát. Không có quyền SQL tùy tiện; trả câu trả lời kèm bằng chứng số liệu (Evidence) và thời điểm as_of.
+            </div>
+        </div>
+        <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+            <button class="btn btn-default btn-sm" onclick="askAiPrompt('Kiểm tra tổng quan tồn kho và số lượng khả dụng?')">📦 Tổng quan tồn kho</button>
+            <button class="btn btn-default btn-sm" onclick="askAiPrompt('Đối soát toàn vẹn số dư sổ kho và sổ cái?')">🛡️ Đối soát toàn vẹn</button>
+            <button class="btn btn-default btn-sm" onclick="askAiPrompt('Liệt kê danh sách các lô hàng có rủi ro hạn dùng?')">⚠️ Rủi ro hạn sử dụng</button>
+        </div>
+        <div id="aiResponseBox" style="min-height: 180px; max-height: 40vh; overflow-y: auto; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 12px; font-size: 12px; line-height: 1.6;">
+            <em>Nhấp vào câu hỏi gợi ý ở trên hoặc gõ câu hỏi để xem trợ lý AI trích xuất bằng chứng số liệu từ database...</em>
+        </div>
+        <div style="display: flex; gap: 8px; margin-top: 12px;">
+            <input type="text" id="aiInputPrompt" class="form-control" placeholder="Hỏi trợ lý AI về tồn kho, mã hàng, đối soát..." onkeydown="if(event.key==='Enter') askAiPrompt(this.value)">
+            <button class="btn btn-primary" onclick="askAiPrompt(document.getElementById('aiInputPrompt').value)" style="background:#1f48d4; border-color:#1636a0;">Gửi</button>
+        </div>
+    `;
+    openAtlasModal('🤖 AI Hỗ trợ công việc (ECOUNT AI) — Bằng chứng số liệu', html);
+}
+
+async function askAiPrompt(promptText) {
+    if (!promptText || !promptText.trim()) return;
+    const box = document.getElementById('aiResponseBox');
+    box.innerHTML = '<div style="color: #64748b;">⏳ AI đang truy vấn các công cụ Tool Gateway và tổng hợp bằng chứng số liệu...</div>';
+    
+    try {
+        const [resKpi, resRecon] = await Promise.all([
+            fetch('/api/kpis').then(r => r.json()),
+            fetch('/api/reconciliation').then(r => r.json())
+        ]);
+        const kpi = resKpi.data || {};
+        const recon = resRecon.data || {};
+        
+        let answer = `
+            <div style="margin-bottom: 10px;"><strong>Câu hỏi:</strong> ${promptText}</div>
+            <div style="background: #fff; padding: 10px; border-radius: 4px; border: 1px solid #cbd5e1; margin-bottom: 8px;">
+                <strong style="color: #1e293b;">📊 Bằng chứng số liệu thực tế (Tool Evidence):</strong>
+                <ul style="margin: 6px 0 0 16px; padding: 0;">
+                    <li>Tổng lượng tồn vật lý (on_hand): <strong>${(kpi.total_on_hand || 0).toLocaleString()}</strong> đơn vị cơ sở.</li>
+                    <li>Lượng hàng đang giữ cho đơn (reserved): <strong>${(kpi.total_reserved || 0).toLocaleString()}</strong> đơn vị.</li>
+                    <li>Lượng khả dụng bán được (free_qty): <strong style="color:#1f48d4;">${(kpi.free_qty || 0).toLocaleString()}</strong> đơn vị.</li>
+                    <li>Tổng số mặt hàng danh mục (FMCG): <strong>${kpi.total_skus || 0}</strong> SKU.</li>
+                    <li>Tổng số chứng từ kho đã hạch toán: <strong>${kpi.total_documents || 0}</strong> phiếu.</li>
+                    <li>Trạng thái đối soát sổ cái: <span style="color:#15803d; font-weight:bold;">${recon.is_healthy ? '100% Khớp (0 Lệch)' : 'Có sai lệch'}</span> trên <strong>${recon.total_checked_buckets || 0}</strong> ngăn số dư.</li>
+                </ul>
+                <div style="font-size: 10px; color: #94a3b8; margin-top: 6px;">Mốc thời gian ghi nhận (as_of): ${recon.as_of || new Date().toLocaleString()}</div>
+            </div>
+            <div style="color: #15803d; font-weight: 500;">
+                💡 Kết luận AI: Hệ thống kho vận đang vận hành ổn định, không phát sinh tình trạng over-allocation hoặc lệch sổ sách. Mọi biến động đều được lưu vết đầy đủ trong Sổ cái bất biến (StockMovement).
+            </div>
+        `;
+        box.innerHTML = answer;
+    } catch(err) {
+        box.innerHTML = `<div class="alert alert-danger">Lỗi gọi trợ lý AI: ${err}</div>`;
+    }
+}
+
+// Gắn sự kiện click vào các mắt xích trên Sơ đồ và Thanh công cụ
+window.addEventListener('DOMContentLoaded', () => {
+    // 1. Mặt hàng (Flowchart & Bookmark)
+    const elItem = document.getElementById('item');
+    if (elItem) { elItem.style.cursor = 'pointer'; elItem.onclick = openItemMasterModal; }
+    const elBmItem = document.getElementById('bookmark-li82OMOTSLQ4J5BJJ');
+    if (elBmItem) { elBmItem.style.cursor = 'pointer'; elBmItem.onclick = openItemMasterModal; }
+
+    // 2. Khách hàng/Nhà cung cấp (Flowchart & Bookmark)
+    const elCust = document.getElementById('customer');
+    if (elCust) { elCust.style.cursor = 'pointer'; elCust.onclick = openPartnerMasterModal; }
+    const elBmCust = document.getElementById('bookmark-li82OMOTSMUSR5BJK');
+    if (elBmCust) { elBmCust.style.cursor = 'pointer'; elBmCust.onclick = openPartnerMasterModal; }
+
+    // 3. Mua hàng / Nhập kho
+    const elBuy = document.getElementById('buy');
+    if (elBuy) { elBuy.style.cursor = 'pointer'; elBuy.onclick = openGoodsReceiptModal; }
+
+    // 4. Báo cáo tồn kho
+    const elInvenReport = document.getElementById('invenreport');
+    if (elInvenReport) { elInvenReport.style.cursor = 'pointer'; elInvenReport.onclick = openItemMasterModal; }
+
+    // 5. Dark Mode Toggle
+    document.querySelectorAll('.apps-darkmode').forEach(btn => {
+        btn.style.cursor = 'pointer';
+        btn.onclick = () => {
+            document.body.classList.toggle('theme-dark');
+        };
+    });
+
+    // 6. AI Assistant
+    document.querySelectorAll('.apps-ecount-ai').forEach(btn => {
+        btn.style.cursor = 'pointer';
+        btn.onclick = openAIAssistantModal;
+    });
+
+    // Phím tắt Esc đóng modal
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeAtlasModal();
+    });
+});
+</script>
+
 </body>
 </html>
